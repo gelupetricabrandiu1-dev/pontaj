@@ -173,9 +173,11 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .colpick{display:flex;flex-wrap:wrap;gap:8px}
 .colpick .wk span{min-width:0;padding:8px 14px;font-weight:500}
 td.cell{position:relative}
-td.cell.has-adv::before{content:'';position:absolute;top:0;right:0;border-style:solid;border-width:0 10px 10px 0;border-color:transparent var(--ochre) transparent transparent;pointer-events:none}
+td.cell .advtag{position:absolute;top:1px;right:3px;font-size:10px;line-height:1;font-weight:600;color:#d32f2f;font-variant-numeric:tabular-nums;pointer-events:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) td.cell .advtag{color:#ff6b6b}}
+:root[data-theme="dark"] td.cell .advtag{color:#ff6b6b}
 td.cell.has-note::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--accent);pointer-events:none}
-.legend i.lg-adv{background:linear-gradient(225deg,var(--ochre) 0 45%,var(--surface) 45%)}
+.legend b.lg-adv{font-size:10px;color:#d32f2f;margin-right:5px}
 .dayf{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 .dayf .field{font-size:16px;padding:10px 12px;color:var(--ink)}
 .sheetbox{max-height:calc(100vh - 24px);overflow:auto}
@@ -399,7 +401,7 @@ function viewWeek(){
     h+=`<tr><td class="name" data-w="${r.w}" title="${_t('Ține apăsat pentru meniu')}"><button type="button" class="grip" id="g_${r.w}" data-grip="${i}" aria-label="${_t('Mută pe {n} (trage sau folosește săgețile sus/jos)',{n:esc(wName(r.w))})}" title="${_t('Trage ca să muți')}"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><circle cx="2.5" cy="3" r="1.5"/><circle cx="7.5" cy="3" r="1.5"/><circle cx="2.5" cy="8" r="1.5"/><circle cx="7.5" cy="8" r="1.5"/><circle cx="2.5" cy="13" r="1.5"/><circle cx="7.5" cy="13" r="1.5"/></svg></button><span class="nr">${i+1}</span>${esc(wName(r.w))}</td>`;
     r.h.forEach((v,d)=>{const av=r.a&&r.a[d],nt=r.n&&r.n[d];
       const tip=[av&&_t('Avans')+': '+av,nt&&_t('Notă')+': '+nt].filter(Boolean).join(' · ');
-      h+=`<td class="cell${d===5?' col-sat':''}${v===0?' zero':''}${av?' has-adv':''}${nt?' has-note':''}" data-w="${r.w}" data-d="${d}"${tip?` title="${esc(tip)}"`:''}><input id="c_${r.w}_${d}" data-r="${i}" data-d="${d}" inputmode="decimal" autocomplete="off" value="${fmtH(v)}" placeholder="·" aria-label="${esc(wName(r.w))}, ${DAYS[d]} ${dm(days[d])}${tip?' · '+esc(tip):''}"></td>`;});
+      h+=`<td class="cell${d===5?' col-sat':''}${v===0?' zero':''}${av?' has-adv':''}${nt?' has-note':''}" data-w="${r.w}" data-d="${d}"${tip?` title="${esc(tip)}"`:''}><input id="c_${r.w}_${d}" data-r="${i}" data-d="${d}" inputmode="decimal" autocomplete="off" value="${fmtH(v)}" placeholder="·" aria-label="${esc(wName(r.w))}, ${DAYS[d]} ${dm(days[d])}${tip?' · '+esc(tip):''}">${av?`<span class="advtag" aria-hidden="true">${fmtE(advSum(av))}</span>`:''}</td>`;});
     h+=`<td class="tot" id="t_${r.w}">${fmtH(c.rowT[i])}</td><td class="act">
       <button class="btn ghost" data-act="rowStd" data-w="${r.w}" title="${_t('Completează rândul cu programul standard ({p})',{p:S.std.map(fmtH).join('-')})}">Std</button></td></tr>`;
   });
@@ -410,7 +412,7 @@ function viewWeek(){
     <button class="btn" data-act="fillStd" title="${_t('Pune {p} doar în celulele goale',{p:S.std.map(fmtH).join('-')})}">${_t('Completează golurile cu standard')}</button>
     ${prev&&prev.rows.some(r=>!wk.rows.find(x=>x.w===r.w))?`<button class="btn" data-act="copyPrev">${_t('Adaugă lipsă din săpt. trecută')}</button>`:''}
   </div>
-  <div class="legend"><span><i style="background:var(--surface)"></i>${_t('gol = necompletat')}</span><span><i style="background:var(--warn-soft)"></i>${_t('0 = absent')}</span><span>${_t('Trage de ⋮⋮ ca să muți un om în sus sau în jos')}</span><span>${_t('Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)')}</span><span><i class="lg-adv"></i>${_t('Ține apăsat pe o zi pentru avans și notă (pe PC: clic dreapta)')}</span><span>${_t('Enter coboară pe rândul următor · zecimale cu virgulă (7,5)')}</span></div>`;
+  <div class="legend"><span><i style="background:var(--surface)"></i>${_t('gol = necompletat')}</span><span><i style="background:var(--warn-soft)"></i>${_t('0 = absent')}</span><span>${_t('Trage de ⋮⋮ ca să muți un om în sus sau în jos')}</span><span>${_t('Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)')}</span><span><b class="lg-adv">300</b>${_t('Ține apăsat pe o zi pentru avans și notă (pe PC: clic dreapta)')}</span><span>${_t('Enter coboară pe rândul următor · zecimale cu virgulă (7,5)')}</span></div>`;
   return h;
 }
 function addPersonForm(){
