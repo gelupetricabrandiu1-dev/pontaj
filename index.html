@@ -170,6 +170,8 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .saved{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)}
 .saved .btn{padding:4px 10px;font-size:13px}
 .extras .li input.pin{border-color:var(--line)}
+.colpick{display:flex;flex-wrap:wrap;gap:8px}
+.colpick .wk span{min-width:0;padding:8px 14px;font-weight:500}
 .xsum{display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px}
 .xsum small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;z-index:10;max-width:calc(100% - 32px)}
@@ -587,12 +589,15 @@ function payCalc(){
   T.diff=r2(T.inc-T.pay);
   return {sel,rows,P,T,ex};
 }
+function hiddenCols(mode){S.hide=S.hide||(()=>{try{return JSON.parse(store.get('pz.hide')||'{}')}catch(e){return {}}})();return new Set(S.hide[mode]||[]);}
+function setHidden(mode,key,hide){const h=hiddenCols(mode);if(hide)h.add(key);else h.delete(key);S.hide[mode]=[...h];store.set('pz.hide',JSON.stringify(S.hide));}
 function viewPay(mode){
   const IN=mode==='in';
   if(!activeSites().length)return `<div class="sheet" style="margin-top:18px"><div class="empty"><h3>Niciun șantier încă</h3>Adaugă un șantier în „Oameni și șantiere”.</div></div>`;
   ensurePaySel();
   const all=payWeeks();
   let h=`<div class="toolbar"><h2 style="margin-right:8px">${IN?'Încasare':'Plată'}</h2>${siteSelect('siteSel',S.siteId)}<div class="grow"></div>
+    <button class="btn${S.colsOpen?' primary':''}" data-act="colsToggle">Coloane${hiddenCols(mode).size?' ('+hiddenCols(mode).size+' ascunse)':''}</button>
     <button class="btn" data-act="payExport"${!S.paySel.size||!canExport()?' disabled':''}>Exportă Excel</button></div>
   <section class="panel" style="margin-top:14px"><h3>Săptămânile calculate</h3>`;
   if(!all.length)h+=`<p class="hint">Nu există pontaj la ${esc(sName(S.siteId))}.</p>`;
@@ -614,27 +619,33 @@ function viewPay(mode){
     :`<div class="chip"><b>${fmtE(T.pay)} €</b> plată</div><div class="chip"><b>${fmtE(T.adv)} €</b> avansuri</div><div class="chip"><b>${fmtE(T.rest)} €</b> rest de plată</div>`}
     <div class="chip good" title="Încasare − plată"><b>${fmtE(T.diff)} €</b> diferență</div>
     ${miss?`<div class="chip warn"><b>${miss}</b> fără tarif</div>`:''}</div>`;
-  const nameCell=r=>`<td class="name">${r.manual?`<button type="button" class="btn ghost" data-act="payRmManual" data-w="${r.w}" title="Scoate din calcul" aria-label="Scoate pe ${esc(wName(r.w))} din calcul" style="padding:0 6px;margin-left:-8px">×</button>`:''}${esc(wName(r.w))}${r.manual?' <span class="pill">manual</span>':''}</td>${r.per.map(v=>`<td class="num">${r.manual?'–':fmtH(v)}</td>`).join('')}`;
-  const hoursCell=r=>`<td class="num">${r.manual?`<input class="pin${r.billed?'':' missing'}" id="pb_${r.w}" data-pf="billedH" data-w="${r.w}" inputmode="decimal" value="${r.billed?fmtH(r.billed):''}" placeholder="ore" aria-label="Ore ${esc(wName(r.w))}">`:`<b>${fmtH(r.billed)}</b>`}</td>`;
-  h+=`<div class="sheet"><table class="pay"><thead><tr><th class="name">Nume</th>${sel.map(m=>`<th>S${isoWeek(m)}</th>`).join('')}<th>Ore</th>`+(IN
-    ?`<th>Tarif €/h</th><th>Încasare €</th><th>Notă</th>`
-    :`<th>Ore plătite</th><th>Tarif €/h</th><th>Plată €</th><th>Avans €</th><th>Rest €</th><th>Notă</th>`)+`</tr></thead><tbody>`;
+  const COLS=IN?[['wk','Săptămâni'],['ore','Ore'],['rate','Tarif'],['sum','Încasare'],['note','Notă']]
+               :[['wk','Săptămâni'],['ore','Ore pontate'],['paid','Ore plătite'],['rate','Tarif'],['sum','Plată'],['adv','Avans'],['rest','Rest'],['note','Notă']];
+  const hid=hiddenCols(mode);const vis=COLS.map(c=>c[0]).filter(k=>!hid.has(k));
+  if(S.colsOpen)h+=`<section class="panel" style="margin-top:14px"><h3>Coloane afișate</h3><div class="colpick">${COLS.map(([k,l])=>`<label class="wk"><input type="checkbox" id="col_${mode}_${k}" data-col="${k}"${hid.has(k)?'':' checked'}><span>${l}</span></label>`).join('')}</div>
+    <p class="hint">Numele rămâne mereu vizibil. Ascunderea e doar pe ecran: exportul Excel păstrează toate coloanele.</p></section>`;
+  const cellsFor=(map)=>vis.map(k=>map[k]===undefined?'<td></td>':map[k]).join('');
+  const head={wk:sel.map(m=>`<th>S${isoWeek(m)}</th>`).join(''),ore:`<th>Ore</th>`,paid:`<th>Ore plătite</th>`,rate:`<th>Tarif €/h</th>`,sum:`<th>${IN?'Încasare':'Plată'} €</th>`,adv:`<th>Avans €</th>`,rest:`<th>Rest €</th>`,note:`<th>Notă</th>`};
+  h+=`<div class="sheet"><table class="pay"><thead><tr><th class="name">Nume</th>${vis.map(k=>head[k]).join('')}</tr></thead><tbody>`;
   rows.forEach((r,ri)=>{
-    h+=`<tr>${nameCell(r)}${hoursCell(r)}`;
-    if(IN)h+=`<td><input class="pin${r.rIn==null&&r.billed?' missing':''}" id="pi_${r.w}" data-pf="rateIn" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rIn)}" placeholder="–" aria-label="Tarif încasare ${esc(wName(r.w))}"></td>
-      <td class="money">${fmtE(r.inc)}</td>`;
-    else h+=`<td><input class="pin${r.ovr?' ovr':''}" id="ph_${r.w}" data-pf="paidH" data-w="${r.w}" inputmode="decimal" value="${r.ovr?fmtH(r.paidH):''}" placeholder="${fmtH(r.billed)}" title="Gol = la fel ca orele pontate" aria-label="Ore plătite ${esc(wName(r.w))}"></td>
-      <td><input class="pin${r.rOut==null&&r.billed?' missing':''}" id="po_${r.w}" data-pf="rateOut" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rOut)}" placeholder="–" aria-label="Tarif plată ${esc(wName(r.w))}"></td>
-      <td class="money">${fmtE(r.pay)}</td>
-      <td><input class="pin txt" id="pa_${r.w}" data-pf="adv" data-w="${r.w}" value="${esc(r.advText)}" placeholder="${ri===0?'ex. 200+170':''}" title="${r.adv?'Total: '+fmtE(r.adv)+' €':''}" aria-label="Avans ${esc(wName(r.w))}"></td>
-      <td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>`;
-    h+=`<td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" aria-label="Notă ${esc(wName(r.w))}"></td></tr>`;
+    const nm=`<td class="name">${r.manual?`<button type="button" class="btn ghost" data-act="payRmManual" data-w="${r.w}" title="Scoate din calcul" aria-label="Scoate pe ${esc(wName(r.w))} din calcul" style="padding:0 6px;margin-left:-8px">×</button>`:''}${esc(wName(r.w))}${r.manual?' <span class="pill">manual</span>':''}</td>`;
+    const m={
+      wk:r.per.map(v=>`<td class="num">${r.manual?'–':fmtH(v)}</td>`).join(''),
+      ore:`<td class="num">${r.manual?`<input class="pin${r.billed?'':' missing'}" id="pb_${r.w}" data-pf="billedH" data-w="${r.w}" inputmode="decimal" value="${r.billed?fmtH(r.billed):''}" placeholder="ore" aria-label="Ore ${esc(wName(r.w))}">`:`<b>${fmtH(r.billed)}</b>`}</td>`,
+      paid:`<td><input class="pin${r.ovr?' ovr':''}" id="ph_${r.w}" data-pf="paidH" data-w="${r.w}" inputmode="decimal" value="${r.ovr?fmtH(r.paidH):''}" placeholder="${fmtH(r.billed)}" title="Gol = la fel ca orele pontate" aria-label="Ore plătite ${esc(wName(r.w))}"></td>`,
+      rate:IN?`<td><input class="pin${r.rIn==null&&r.billed?' missing':''}" id="pi_${r.w}" data-pf="rateIn" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rIn)}" placeholder="–" aria-label="Tarif încasare ${esc(wName(r.w))}"></td>`
+             :`<td><input class="pin${r.rOut==null&&r.billed?' missing':''}" id="po_${r.w}" data-pf="rateOut" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rOut)}" placeholder="–" aria-label="Tarif plată ${esc(wName(r.w))}"></td>`,
+      sum:`<td class="money">${fmtE(IN?r.inc:r.pay)}</td>`,
+      adv:`<td><input class="pin txt" id="pa_${r.w}" data-pf="adv" data-w="${r.w}" value="${esc(r.advText)}" placeholder="${ri===0?'ex. 200+170':''}" title="${r.adv?'Total: '+fmtE(r.adv)+' €':''}" aria-label="Avans ${esc(wName(r.w))}"></td>`,
+      rest:`<td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>`,
+      note:`<td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" aria-label="Notă ${esc(wName(r.w))}"></td>`};
+    h+=`<tr>${nm}${cellsFor(m)}</tr>`;
   });
   ex.forEach(x=>{const v=IN?x.in:x.out;if(!v&&!x.note)return;
-    h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+(IN?2:3)}"></td><td class="money">${v?fmtE(v):''}</td>${IN?'':'<td colspan="2"></td>'}<td style="color:var(--muted);padding:0 8px">${esc(x.note||'')}</td></tr>`;});
-  h+=`</tbody><tfoot><tr><td class="name">Total</td>${sel.map((m,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+(r.manual?0:r.per[i]),0)))}</td>`).join('')}<td class="num">${fmtH(T.billed)}</td>`+(IN
-    ?`<td></td><td class="money">${fmtE(T.inc)}</td><td></td>`
-    :`<td class="num">${fmtH(T.paidH)}</td><td></td><td class="money">${fmtE(T.pay)}</td><td class="money">${fmtE(T.adv)}</td><td class="money">${fmtE(T.rest)}</td><td></td>`)+`</tr></tfoot></table></div>`;
+    h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td>${cellsFor({wk:sel.map(()=>'<td></td>').join(''),sum:`<td class="money">${v?fmtE(v):''}</td>`,note:`<td style="color:var(--muted);padding:0 8px">${esc(x.note||'')}</td>`})}</tr>`;});
+  h+=`</tbody><tfoot><tr><td class="name">Total</td>${cellsFor({wk:sel.map((mm,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+(r.manual?0:r.per[i]),0)))}</td>`).join(''),
+    ore:`<td class="num">${fmtH(T.billed)}</td>`,paid:`<td class="num">${fmtH(T.paidH)}</td>`,sum:`<td class="money">${fmtE(IN?T.inc:T.pay)}</td>`,
+    adv:`<td class="money">${fmtE(T.adv)}</td>`,rest:`<td class="money">${fmtE(T.rest)}</td>`})}</tr></tfoot></table></div>`;
   const inList=new Set(rows.map(r=>r.w));
   h+=`<div class="below"><form class="addform" data-act="payAddForm"><input class="field" type="text" id="payNewPerson" list="paylist" placeholder="Nume om (existent sau nou)" required>
     <datalist id="paylist">${allWorkers().filter(([id,w])=>!w.archived&&!inList.has(id)).map(([,w])=>`<option value="${esc(w.name)}"></option>`).join('')}</datalist>
@@ -773,6 +784,7 @@ document.addEventListener('click',e=>{
   else if(a==='importYes'){const d=S.pendingImport&&S.pendingImport.data;if(!d||!S.local)return;
     S.db.replaceAll({sites:d.sites||{},workers:d.workers||{},weeks:d.weeks||{},pay:d.pay||{},config:d.config||{}});S.pendingImport=null;S.siteId=null;render();toast('Backup încărcat.');}
   else if(a==='payLoad'){const p=S.pay.get(t.dataset.id);if(p){S.paySel=new Set(p.weeks);S.paySelSite=S.siteId;render();}}
+  else if(a==='colsToggle'){S.colsOpen=!S.colsOpen;render();}
   else if(a==='payExport')exportPay(S.view==='incasare'?'in':'out');
   else if(a==='exAdd'){const [id,P]=ensurePeriod();P.extras=(P.extras||[]).concat([{id:rid('x'),label:'',in:null,out:null}]);savePayLater(id);render();
     const ls=document.querySelectorAll('[data-xf="label"]');if(ls.length)ls[ls.length-1].focus();}
@@ -810,6 +822,7 @@ document.addEventListener('submit',e=>{
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='siteSel'){S.siteId=t.value;store.set('pz.site',t.value);S.confirmRm=null;render();return;}
+  if(t.dataset.col){setHidden(S.view==='incasare'?'in':'out',t.dataset.col,!t.checked);render();return;}
   if(t.dataset.paywk){if(t.checked)S.paySel.add(t.dataset.paywk);else S.paySel.delete(t.dataset.paywk);render();return;}
   if(t.dataset.pf){
     const [id,P]=ensurePeriod();const w=t.dataset.w,f=t.dataset.pf;const pp=P.people[w]=P.people[w]||{};
