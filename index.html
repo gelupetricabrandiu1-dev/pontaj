@@ -1050,43 +1050,40 @@ async function flushPay(id){
   pinflight.delete(id);if(pdirty.has(id))flushPay(id);else if(!dirty.size&&!inflight.size&&!pdirty.size)setStatus('ok');
 }
 // Export Încasare sau Plată, fiecare separat, în stilul din MAINZ-2.xlsx: antet negru, rând cu șantierul, total albastru.
+// Export Încasare / Plată simplu, ca foaia din MAINZ-2.xlsx (săptămânile 37–38):
+// Nr · Nume · săptămânile · Total ore · Tarif · Sumă · (avansul scris în dreapta, fără chenar) · Diesel/Rest jos · totalul sub sumă.
 function exportPay(mode){
   const IN=mode==='in';
   const {sel,rows,T,ex}=payCalc();if(!rows.length)return;
   const n=sel.length,ws={};
-  const C0=0,CT=n+1,CPH=IN?-1:n+2,CR=IN?n+2:n+3,CS=CR+1,CA=IN?-1:CS+1,CRest=IN?-1:CS+2,CN=IN?CS+1:CS+3;
+  const CN=0,CNAME=1,CW=2,CT=CW+n,CR=CT+1,CS=CR+1,CA=CS+1;
+  const f11={name:'Calibri',sz:11,color:{rgb:'000000'}},g=xfill('D9D9D9');
+  const st={site:{font:{name:'Arial Black',sz:13,bold:true,color:{rgb:'000000'}},fill:g,border:XBOX,alignment:{horizontal:'left',vertical:'center'}},
+    wk:{font:{name:'Arial',sz:11,bold:true,color:{rgb:'FFFFFF'}},fill:xfill('2F2F2F'),border:XBOX,alignment:{horizontal:'center',vertical:'center'},numFmt:'@'},
+    grey:{font:f11,fill:g,border:XBOX},name:{font:f11,fill:g,border:XBOX},num:{font:f11,border:XBOX},plain:{font:f11}};
   const wkLbl=m=>m.slice(8,10)+'-'+addDays(m,5).slice(8,10);
-  // rând 1: antet negru · rând 2: șantierul
-  xc(ws,C0,0,'',XS.bHead);sel.forEach((m,i)=>xc(ws,C0+1+i,0,wkLbl(m),XS.bHead));
-  xc(ws,CT,0,_t('Total'),XS.bHead);if(!IN)xc(ws,CPH,0,_t('Ore plătite'),XS.bHead);
-  xc(ws,CR,0,_t('Tarif'),XS.bHead);xc(ws,CS,0,_t(IN?'Încasare':'Plată'),XS.bHead);
-  if(!IN){xc(ws,CA,0,_t('Avans'),XS.bHead);xc(ws,CRest,0,_t('Rest'),XS.bHead);}
-  xc(ws,CN,0,_t('Notă'),XS.bHead);
-  xc(ws,C0,1,sName(S.siteId).toUpperCase(),XS.bSite);for(let c=1;c<=CN;c++)xc(ws,c,1,'',XS.bSiteFill);
-  rows.forEach((r,i)=>{const R=2+i,rr=R+1;
-    xc(ws,C0,R,wName(r.w),i%2?XS.bNameW:XS.bName);r.per.forEach((v,j)=>xc(ws,C0+1+j,R,r.manual&&!r.auto?null:v,XS.bNum));
-    if(r.ovrB||(r.manual&&!r.auto))xc(ws,CT,R,r.billed,XS.bNum);else xc(ws,CT,R,r.billed,XS.bNum,`SUM(${colL(C0+1)}${rr}:${colL(C0+n)}${rr})`);
-    if(IN){xc(ws,CR,R,r.rIn,XS.bNum);xc(ws,CS,R,r.inc,XS.bNum,`${colL(CT)}${rr}*N(${colL(CR)}${rr})`);}
-    else{
-      if(r.ovr)xc(ws,CPH,R,r.paidH,XS.bNum);else xc(ws,CPH,R,r.paidH,XS.bNum,`${colL(CT)}${rr}`);
-      xc(ws,CR,R,r.rOut,XS.bNum);xc(ws,CS,R,r.pay,XS.bNum,`N(${colL(CPH)}${rr})*N(${colL(CR)}${rr})`);
-      xc(ws,CA,R,r.adv||null,XS.bNum);xc(ws,CRest,R,r.rest,XS.bNum,`${colL(CS)}${rr}-N(${colL(CA)}${rr})`);
-    }
-    xc(ws,CN,R,[!IN&&r.advText&&(_t('avans')+' '+r.advText),!IN&&r.dayAdv&&(_t('avans din pontaj')+' '+fmtE(r.dayAdv)),r.note].filter(Boolean).join(' · '),XS.bNote);
+  // rândul 1: șantierul, săptămânile, apoi gri gol peste Total / Tarif / Sumă (ca în fișierul tău)
+  xc(ws,CNAME,0,sName(S.siteId).toUpperCase(),st.site);sel.forEach((m,i)=>xc(ws,CW+i,0,wkLbl(m),st.wk));
+  for(const c of [CT,CR,CS])xc(ws,c,0,null,st.grey);
+  rows.forEach((r,i)=>{const R=1+i,rr=R+1;
+    xc(ws,CN,R,i+1,st.plain);xc(ws,CNAME,R,wName(r.w),st.name);
+    r.per.forEach((v,j)=>xc(ws,CW+j,R,r.manual&&!r.auto?null:(v||null),st.num));
+    const hrs=IN?r.billed:r.paidH;const fixed=IN?(r.ovrB||(r.manual&&!r.auto)):(r.ovr||r.ovrB||(r.manual&&!r.auto));
+    if(fixed)xc(ws,CT,R,hrs,st.num);else xc(ws,CT,R,hrs,st.num,`SUM(${colL(CW)}${rr}:${colL(CW+n-1)}${rr})`);
+    xc(ws,CR,R,(IN?r.rIn:r.rOut)??null,st.num);
+    xc(ws,CS,R,IN?r.inc:r.pay,st.num,`${colL(CT)}${rr}*${colL(CR)}${rr}`);
+    if(!IN){const adv=[r.advText,r.dayAdv?fmtE(r.dayAdv):''].filter(Boolean).join('+');if(adv)xc(ws,CA,R,adv,st.plain);}
   });
-  let R=2+rows.length;const f=IN?'in':'out';
-  ex.forEach(x=>{if(!x[f])return;
-    const bon=x[f+'T']&&/\d\s*[+\-]/.test(x[f+'T'])?_t('bonuri')+' '+x[f+'T']:'';
-    for(let c=C0;c<=CN;c++)xc(ws,c,R,c===C0?(x.label||_t('Cheltuială')):c===CS?x[f]:c===CN?[bon,x.note].filter(Boolean).join(' · '):null,c===C0?XS.bName:c===CN?XS.bNote:XS.bNum);
+  let R=1+rows.length;const fk=IN?'in':'out';
+  ex.forEach(x=>{if(!x[fk])return;
+    xc(ws,CN,R,R,st.plain);xc(ws,CNAME,R,x.label||_t('Cheltuială'),st.num);for(let c=CW;c<CS;c++)xc(ws,c,R,null,st.num);
+    xc(ws,CS,R,x[fk],st.num);const bon=x[fk+'T']&&/\d\s*[+\-]/.test(x[fk+'T'])?x[fk+'T']:'';if(bon||x.note)xc(ws,CA,R,[bon,x.note].filter(Boolean).join(' · '),st.plain);
     R++;});
-  const last=R,TR=R+1;
-  xc(ws,C0,TR,_t('Total'),XS.bLbl);
-  xc(ws,CS,TR,IN?T.inc:T.pay,XS.bGrand,`SUM(${colL(CS)}3:${colL(CS)}${last})`);
-  if(!IN){xc(ws,CA,TR,T.adv,XS.bGrand,`SUM(${colL(CA)}3:${colL(CA)}${last})`);xc(ws,CRest,TR,T.rest,XS.bGrand,`SUM(${colL(CRest)}3:${colL(CRest)}${last})`);}
-  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:TR,c:CN}});
-  const cols=[{wch:16},...sel.map(()=>({wch:6})),{wch:7}];
-  if(!IN)cols.push({wch:11});cols.push({wch:6},{wch:10});if(!IN)cols.push({wch:8},{wch:9});cols.push({wch:24});
-  ws['!cols']=cols;ws['!rows']=[{hpt:18},{hpt:20.5}];
+  const last=R;
+  xc(ws,CS,R,IN?T.inc:T.pay,st.plain,`SUM(${colL(CS)}2:${colL(CS)}${last})`);
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:R,c:IN?CS:CA}});
+  ws['!cols']=[{width:2.8},{width:15.4},...sel.map(()=>({width:5.8})),{width:4.5},{width:4.8},{width:7.8},{width:12.9}];
+  ws['!rows']=[{hpt:20.5}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,sheetName(_t(IN?'Încasare':'Plată')+' '+fullRange(sel[0],addDays(sel[n-1],5)),new Set()));
   save(wb,`${_t(IN?'Incasare':'Plata')}_${sName(S.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_S${sel.map(isoWeek).join('-')}.xlsx`);
