@@ -1160,7 +1160,9 @@ document.addEventListener('click',e=>{
   else if(a==='importNo'){S.pendingImport=null;render();}
   else if(a==='importYes')(async()=>{const d=S.pendingImport&&S.pendingImport.data;if(!d||!S.local)return;
     for(const [ref,u] of Object.entries(d.files||{})){try{const b=await dataURLToBlob(u);await FS.idbReq('readwrite',st=>st.put(b,ref));FS.cache.delete(ref);}catch(e){}}
-    S.db.replaceAll({sites:d.sites||{},workers:d.workers||{},weeks:d.weeks||{},pay:d.pay||{},config:d.config||{}});S.pendingImport=null;S.siteId=null;render();toast(_t('Backup încărcat.'));})();
+    // backup-ul încărcat devine varianta cea mai nouă: altfel o ștergere mai veche din Drive l-ar putea șterge din nou la sincronizare
+    const now=Date.now(),fresh=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,{...v,_t:now}]));
+    S.db.replaceAll({sites:fresh(d.sites),workers:fresh(d.workers),weeks:fresh(d.weeks),pay:fresh(d.pay),config:fresh(d.config)});S.pendingImport=null;GS.onLocalWrite();S.siteId=null;render();toast(_t('Backup încărcat.'));})();
   else if(a==='payLoad'){const p=S.pay.get(t.dataset.id);if(p){S.paySel=new Set(p.weeks);S.paySelSite=S.siteId;render();}}
   else if(a==='colsToggle'){S.colsOpen=!S.colsOpen;render();}
   else if(a==='payExport')exportPay(S.view==='incasare'?'in':'out');
