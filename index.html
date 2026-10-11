@@ -170,6 +170,8 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .saved{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)}
 .saved .btn{padding:4px 10px;font-size:13px}
 .extras .li input.pin{border-color:var(--line)}
+.xsum{display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px}
+.xsum small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;z-index:10;max-width:calc(100% - 32px)}
 @media (max-width:640px){
   .weeklabel{font-size:18px}
@@ -624,15 +626,16 @@ function viewPay(){
       <td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>
       <td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" placeholder="" aria-label="Notă ${esc(wName(r.w))}"></td></tr>`;
   });
-  ex.forEach(x=>{h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+2}"></td><td class="money">${x.in?fmtE(x.in):''}</td><td class="sep" colspan="2"></td><td class="money">${x.out?fmtE(x.out):''}</td><td colspan="3"></td></tr>`;});
+  ex.forEach(x=>{h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+2}"></td><td class="money">${x.in?fmtE(x.in):''}</td><td class="sep" colspan="2"></td><td class="money">${x.out?fmtE(x.out):''}</td><td colspan="2"></td><td style="color:var(--muted);padding:0 8px">${esc(x.note||'')}</td></tr>`;});
   h+=`</tbody><tfoot><tr><td class="name">Total</td>${sel.map((m,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+r.per[i],0)))}</td>`).join('')}
     <td class="num">${fmtH(T.billed)}</td><td></td><td class="money">${fmtE(T.inc)}</td>
     <td class="sep num">${fmtH(T.paidH)}</td><td></td><td class="money">${fmtE(T.pay)}</td><td class="money">${fmtE(T.adv)}</td><td class="money">${fmtE(T.rest)}</td><td></td></tr></tfoot></table></div>`;
   h+=`<section class="panel extras" style="margin-top:14px"><h3>Cheltuieli (diesel, rest…)</h3>
     <p class="hint" style="margin-top:0">Suma se adaugă la totalul de încasare și la cel de plată, ca în Excel.</p><div class="list">`;
   ex.forEach(x=>{h+=`<div class="li"><input class="pin txt" id="xl_${x.id}" data-xf="label" data-x="${x.id}" value="${esc(x.label)}" placeholder="Denumire" aria-label="Denumire cheltuială" style="flex:1;min-width:0;width:auto">
-    <input class="pin" id="xi_${x.id}" data-xf="in" data-x="${x.id}" inputmode="decimal" value="${fmtH(x.in)}" placeholder="încasare" aria-label="Sumă încasare">
-    <input class="pin" id="xo_${x.id}" data-xf="out" data-x="${x.id}" inputmode="decimal" value="${fmtH(x.out)}" placeholder="plată" aria-label="Sumă plată">
+    <span class="xsum"><input class="pin txt" id="xi_${x.id}" data-xf="in" data-x="${x.id}" value="${esc(x.inT??fmtH(x.in))}" placeholder="încasare, ex. 450+300" aria-label="Sumă încasare">${x.inT&&/\d\s*[+\-]/.test(x.inT)?`<small>= ${fmtE(x.in)} €</small>`:''}</span>
+    <span class="xsum"><input class="pin txt" id="xo_${x.id}" data-xf="out" data-x="${x.id}" value="${esc(x.outT??fmtH(x.out))}" placeholder="plată" aria-label="Sumă plată">${x.outT&&/\d\s*[+\-]/.test(x.outT)?`<small>= ${fmtE(x.out)} €</small>`:''}</span>
+    <input class="pin note" id="xn_${x.id}" data-xf="note" data-x="${x.id}" value="${esc(x.note||'')}" placeholder="scrie ce vrei" aria-label="Notă cheltuială">
     <button class="btn ghost" data-act="exDel" data-x="${x.id}" aria-label="Șterge linia">×</button></div>`;});
   h+=`</div><div class="below"><button class="btn" data-act="exAdd">Adaugă cheltuială</button></div></section>
   <div class="legend"><span>Ore plătite goale = la fel ca orele pontate · completează doar dacă omul a lucrat mai puțin</span><span>Avans: poți scrie mai multe sume, ex. 200+170+100</span><span>Tariful schimbat aici devine tariful omului pentru calculele următoare</span></div>`;
@@ -679,7 +682,9 @@ function exportPay(){
   let R=2+rows.length;
   ex.forEach(x=>{if(!x.in&&!x.out)return;
     for(let c=L0;c<=LS;c++)xc(ws,c,R,c===L0?(x.label||'Cheltuială'):c===LS?(x.in||null):null,c===L0?XS.bName:XS.bNum);
-    for(let c=R0;c<=RN;c++)xc(ws,c,R,c===R0?(x.label||'Cheltuială'):c===RS?(x.out||null):null,c===R0?XS.bName:c===RN?XS.bNote:XS.bNum);
+    const bon=[x.inT,x.outT].find(v=>v&&/\d\s*[+\-]/.test(v));
+    const xnote=[bon&&('bonuri '+bon),x.note].filter(Boolean).join(' · ');
+    for(let c=R0;c<=RN;c++)xc(ws,c,R,c===R0?(x.label||'Cheltuială'):c===RS?(x.out||null):c===RN?xnote:null,c===R0?XS.bName:c===RN?XS.bNote:XS.bNum);
     R++;});
   const last=R,TR=R+1;  // un rând liber, apoi totalul (ca în fișierul tău)
   xc(ws,L0,TR,'Total',XS.bLbl);xc(ws,R0,TR,'Total',XS.bLbl);
@@ -811,8 +816,11 @@ document.addEventListener('change',e=>{
   if(t.dataset.xf){
     const [id,P]=ensurePeriod();const x=(P.extras||[]).find(e=>e.id===t.dataset.x);if(!x)return;const f=t.dataset.xf;
     if(f==='label')x.label=t.value.trim();
-    else{const n=numIn(t.value);if(!n.ok){toast('Scrie o sumă, ex. 1250');t.value=fmtH(x[f]);return;}x[f]=n.v;
-      if(f==='in'&&x.out==null&&n.v!=null)x.out=n.v;}
+    else if(f==='note'){const v=t.value.trim();if(v)x.note=v;else delete x.note;}
+    else{const raw=t.value.trim();
+      if(raw&&!/\d/.test(raw)){toast('Scrie o sumă sau mai multe bonuri, ex. 450+300');t.value=x[f+'T']??fmtH(x[f]);return;}
+      x[f]=raw?advSum(raw):null;if(raw)x[f+'T']=raw;else delete x[f+'T'];
+      if(f==='in'&&x.out==null&&x.in!=null){x.out=x.in;x.outT=x.inT;}}
     savePayLater(id);setTimeout(render,0);return;
   }
   if(t.id==='repSite'){S.repSite=t.value;render();return;}
