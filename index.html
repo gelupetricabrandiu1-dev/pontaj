@@ -189,7 +189,8 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
     <nav class="tabs" id="tabs">
       <button data-view="pontaj">Pontaj</button>
       <button data-view="rapoarte">Rapoarte</button>
-      <button data-view="bani">Bani</button>
+      <button data-view="incasare">Încasare</button>
+      <button data-view="plata">Plată</button>
       <button data-view="setari">Oameni și șantiere</button>
     </nav>
     <div class="status" id="status" aria-live="polite">Se încarcă…</div>
@@ -225,7 +226,7 @@ const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},se
 
 const S={
   sites:new Map(), workers:new Map(), weeks:new Map(), std:[10,10,10,10,10,5],
-  view:store.get('pz.view')||'pontaj', siteId:store.get('pz.site'), monday:mondayOf(todayStr()),
+  view:(v=>v==='bani'?'incasare':v)(store.get('pz.view'))||'pontaj', siteId:store.get('pz.site'), monday:mondayOf(todayStr()),
   month:todayStr().slice(0,7), repSite:'all', db:null, dl:null, loaded:{sites:false,workers:false,weeks:false}, offline:false,
   confirmRm:null, exportOpen:false, expSel:new Set(), local:false, pendingImport:null,
   pay:new Map(), paySel:null, paySelSite:null
@@ -294,7 +295,7 @@ function render(){
   const m=$('main');
   if(S.view==='rapoarte')m.innerHTML=viewReports();
   else if(S.view==='setari')m.innerHTML=viewSettings();
-  else if(S.view==='bani')m.innerHTML=viewPay();
+  else if(S.view==='incasare'||S.view==='plata')m.innerHTML=viewPay(S.view==='incasare'?'in':'out');
   else m.innerHTML=viewWeek();
   renderSheet();
   if(fid){const el=$(fid);if(el){el.focus();if(fval!=null&&el.value!==fval)el.value=fval;if(sel)try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
@@ -568,13 +569,16 @@ function payCalc(){
   const order=[],seen=new Set();
   [...wks].reverse().forEach(wk=>wk&&wk.rows.forEach(r=>{if(!seen.has(r.w)){seen.add(r.w);order.push(r.w);}}));
   const [,P]=periodView();
+  const fromPontaj=new Set(order);
+  (P.manual||[]).forEach(w=>{if(!seen.has(w)){seen.add(w);order.push(w);}});
   const rows=order.map(w=>{
+    const manual=!fromPontaj.has(w);const pp=P.people[w]||{};
     const per=wks.map(wk=>{const r=wk&&wk.rows.find(x=>x.w===w);return r?rowHours(r):0;});
-    const billed=r2(per.reduce((a,b)=>a+b,0));const pp=P.people[w]||{};const wo=S.workers.get(w)||{};
+    const billed=manual?r2(pp.billedH||0):r2(per.reduce((a,b)=>a+b,0));const wo=S.workers.get(w)||{};
     const rIn=pp.rateIn??wo.rateIn??null,rOut=pp.rateOut??wo.rateOut??null;
     const paidH=pp.paidH??billed;const adv=advSum(pp.adv);
     const inc=rIn==null?0:r2(billed*rIn),pay=rOut==null?0:r2(paidH*rOut);
-    return {w,per,billed,rIn,rOut,paidH,ovr:pp.paidH!=null,inc,pay,adv,rest:r2(pay-adv),advText:pp.adv||'',note:pp.note||''};
+    return {w,manual,per,billed,rIn,rOut,paidH,ovr:pp.paidH!=null,inc,pay,adv,rest:r2(pay-adv),advText:pp.adv||'',note:pp.note||''};
   });
   const ex=P.extras||[];const exIn=r2(ex.reduce((a,x)=>a+(x.in||0),0)),exOut=r2(ex.reduce((a,x)=>a+(x.out||0),0));
   const sum=k=>r2(rows.reduce((a,r)=>a+r[k],0));
@@ -583,11 +587,12 @@ function payCalc(){
   T.diff=r2(T.inc-T.pay);
   return {sel,rows,P,T,ex};
 }
-function viewPay(){
+function viewPay(mode){
+  const IN=mode==='in';
   if(!activeSites().length)return `<div class="sheet" style="margin-top:18px"><div class="empty"><h3>Niciun șantier încă</h3>Adaugă un șantier în „Oameni și șantiere”.</div></div>`;
   ensurePaySel();
   const all=payWeeks();
-  let h=`<div class="toolbar"><h2 style="margin-right:8px">Bani</h2>${siteSelect('siteSel',S.siteId)}<div class="grow"></div>
+  let h=`<div class="toolbar"><h2 style="margin-right:8px">${IN?'Încasare':'Plată'}</h2>${siteSelect('siteSel',S.siteId)}<div class="grow"></div>
     <button class="btn" data-act="payExport"${!S.paySel.size||!canExport()?' disabled':''}>Exportă Excel</button></div>
   <section class="panel" style="margin-top:14px"><h3>Săptămânile calculate</h3>`;
   if(!all.length)h+=`<p class="hint">Nu există pontaj la ${esc(sName(S.siteId))}.</p>`;
@@ -601,44 +606,49 @@ function viewPay(){
     if(saved.length)h+=`<div class="saved">Calcule salvate: ${saved.map(([id,p])=>`<button class="btn${id===periodId(S.siteId,[...S.paySel])?' primary':''}" data-act="payLoad" data-id="${esc(id)}">${p.weeks.map(isoWeek).join(', ')}</button>`).join('')}</div>`;
   }
   h+=`</section>`;
-  if(!S.paySel.size){h+=`<div class="sheet"><div class="empty"><h3>Bifează una sau mai multe săptămâni</h3>Orele vin automat din pontaj, apoi completezi tarifele și avansurile.</div></div>`;return h;}
+  if(!S.paySel.size){h+=`<div class="sheet"><div class="empty"><h3>Bifează una sau mai multe săptămâni</h3>Orele vin automat din pontaj, apoi completezi tarifele${IN?'':' și avansurile'}.</div></div>`;return h;}
   const {sel,rows,T,ex}=payCalc();
-  h+=`<div class="chips">
-    <div class="chip"><b>${fmtE(T.inc)} €</b> încasare (simulare)</div>
-    <div class="chip"><b>${fmtE(T.pay)} €</b> plată</div>
-    <div class="chip good"><b>${fmtE(T.diff)} €</b> diferență</div>
-    <div class="chip"><b>${fmtE(T.adv)} €</b> avansuri</div>
-    <div class="chip"><b>${fmtE(T.rest)} €</b> rest de plată</div>
-    ${T.missing?`<div class="chip warn"><b>${T.missing}</b> fără tarif</div>`:''}</div>`;
-  h+=`<div class="sheet"><table class="pay"><thead>
-    <tr><th class="name"></th><th class="grp in" colspan="${sel.length+3}">Încasare · simulare</th><th class="grp out sep" colspan="6">Plată</th></tr>
-    <tr><th class="name">Nume</th>${sel.map(m=>`<th>S${isoWeek(m)}</th>`).join('')}<th>Ore</th><th>Tarif €/h</th><th>Încasare €</th>
-    <th class="sep">Ore plătite</th><th>Tarif €/h</th><th>Plată €</th><th>Avans €</th><th>Rest €</th><th>Notă</th></tr></thead><tbody>`;
+  const miss=rows.filter(r=>r.billed>0&&(IN?r.rIn==null:r.rOut==null)).length;
+  h+=`<div class="chips">${IN
+    ?`<div class="chip"><b>${fmtE(T.inc)} €</b> încasare (simulare)</div><div class="chip"><b>${fmtH(T.billed)}</b> ore</div>`
+    :`<div class="chip"><b>${fmtE(T.pay)} €</b> plată</div><div class="chip"><b>${fmtE(T.adv)} €</b> avansuri</div><div class="chip"><b>${fmtE(T.rest)} €</b> rest de plată</div>`}
+    <div class="chip good" title="Încasare − plată"><b>${fmtE(T.diff)} €</b> diferență</div>
+    ${miss?`<div class="chip warn"><b>${miss}</b> fără tarif</div>`:''}</div>`;
+  const nameCell=r=>`<td class="name">${r.manual?`<button type="button" class="btn ghost" data-act="payRmManual" data-w="${r.w}" title="Scoate din calcul" aria-label="Scoate pe ${esc(wName(r.w))} din calcul" style="padding:0 6px;margin-left:-8px">×</button>`:''}${esc(wName(r.w))}${r.manual?' <span class="pill">manual</span>':''}</td>${r.per.map(v=>`<td class="num">${r.manual?'–':fmtH(v)}</td>`).join('')}`;
+  const hoursCell=r=>`<td class="num">${r.manual?`<input class="pin${r.billed?'':' missing'}" id="pb_${r.w}" data-pf="billedH" data-w="${r.w}" inputmode="decimal" value="${r.billed?fmtH(r.billed):''}" placeholder="ore" aria-label="Ore ${esc(wName(r.w))}">`:`<b>${fmtH(r.billed)}</b>`}</td>`;
+  h+=`<div class="sheet"><table class="pay"><thead><tr><th class="name">Nume</th>${sel.map(m=>`<th>S${isoWeek(m)}</th>`).join('')}<th>Ore</th>`+(IN
+    ?`<th>Tarif €/h</th><th>Încasare €</th><th>Notă</th>`
+    :`<th>Ore plătite</th><th>Tarif €/h</th><th>Plată €</th><th>Avans €</th><th>Rest €</th><th>Notă</th>`)+`</tr></thead><tbody>`;
   rows.forEach((r,ri)=>{
-    h+=`<tr><td class="name">${esc(wName(r.w))}</td>${r.per.map(v=>`<td class="num">${fmtH(v)}</td>`).join('')}
-      <td class="num"><b>${fmtH(r.billed)}</b></td>
-      <td><input class="pin${r.rIn==null&&r.billed?' missing':''}" id="pi_${r.w}" data-pf="rateIn" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rIn)}" placeholder="–" aria-label="Tarif încasare ${esc(wName(r.w))}"></td>
-      <td class="money">${fmtE(r.inc)}</td>
-      <td class="sep"><input class="pin${r.ovr?' ovr':''}" id="ph_${r.w}" data-pf="paidH" data-w="${r.w}" inputmode="decimal" value="${r.ovr?fmtH(r.paidH):''}" placeholder="${fmtH(r.billed)}" title="Gol = la fel ca orele pontate" aria-label="Ore plătite ${esc(wName(r.w))}"></td>
+    h+=`<tr>${nameCell(r)}${hoursCell(r)}`;
+    if(IN)h+=`<td><input class="pin${r.rIn==null&&r.billed?' missing':''}" id="pi_${r.w}" data-pf="rateIn" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rIn)}" placeholder="–" aria-label="Tarif încasare ${esc(wName(r.w))}"></td>
+      <td class="money">${fmtE(r.inc)}</td>`;
+    else h+=`<td><input class="pin${r.ovr?' ovr':''}" id="ph_${r.w}" data-pf="paidH" data-w="${r.w}" inputmode="decimal" value="${r.ovr?fmtH(r.paidH):''}" placeholder="${fmtH(r.billed)}" title="Gol = la fel ca orele pontate" aria-label="Ore plătite ${esc(wName(r.w))}"></td>
       <td><input class="pin${r.rOut==null&&r.billed?' missing':''}" id="po_${r.w}" data-pf="rateOut" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rOut)}" placeholder="–" aria-label="Tarif plată ${esc(wName(r.w))}"></td>
       <td class="money">${fmtE(r.pay)}</td>
       <td><input class="pin txt" id="pa_${r.w}" data-pf="adv" data-w="${r.w}" value="${esc(r.advText)}" placeholder="${ri===0?'ex. 200+170':''}" title="${r.adv?'Total: '+fmtE(r.adv)+' €':''}" aria-label="Avans ${esc(wName(r.w))}"></td>
-      <td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>
-      <td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" placeholder="" aria-label="Notă ${esc(wName(r.w))}"></td></tr>`;
+      <td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>`;
+    h+=`<td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" aria-label="Notă ${esc(wName(r.w))}"></td></tr>`;
   });
-  ex.forEach(x=>{h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+2}"></td><td class="money">${x.in?fmtE(x.in):''}</td><td class="sep" colspan="2"></td><td class="money">${x.out?fmtE(x.out):''}</td><td colspan="2"></td><td style="color:var(--muted);padding:0 8px">${esc(x.note||'')}</td></tr>`;});
-  h+=`</tbody><tfoot><tr><td class="name">Total</td>${sel.map((m,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+r.per[i],0)))}</td>`).join('')}
-    <td class="num">${fmtH(T.billed)}</td><td></td><td class="money">${fmtE(T.inc)}</td>
-    <td class="sep num">${fmtH(T.paidH)}</td><td></td><td class="money">${fmtE(T.pay)}</td><td class="money">${fmtE(T.adv)}</td><td class="money">${fmtE(T.rest)}</td><td></td></tr></tfoot></table></div>`;
+  ex.forEach(x=>{const v=IN?x.in:x.out;if(!v&&!x.note)return;
+    h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+(IN?2:3)}"></td><td class="money">${v?fmtE(v):''}</td>${IN?'':'<td colspan="2"></td>'}<td style="color:var(--muted);padding:0 8px">${esc(x.note||'')}</td></tr>`;});
+  h+=`</tbody><tfoot><tr><td class="name">Total</td>${sel.map((m,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+(r.manual?0:r.per[i]),0)))}</td>`).join('')}<td class="num">${fmtH(T.billed)}</td>`+(IN
+    ?`<td></td><td class="money">${fmtE(T.inc)}</td><td></td>`
+    :`<td class="num">${fmtH(T.paidH)}</td><td></td><td class="money">${fmtE(T.pay)}</td><td class="money">${fmtE(T.adv)}</td><td class="money">${fmtE(T.rest)}</td><td></td>`)+`</tr></tfoot></table></div>`;
+  const inList=new Set(rows.map(r=>r.w));
+  h+=`<div class="below"><form class="addform" data-act="payAddForm"><input class="field" type="text" id="payNewPerson" list="paylist" placeholder="Nume om (existent sau nou)" required>
+    <datalist id="paylist">${allWorkers().filter(([id,w])=>!w.archived&&!inList.has(id)).map(([,w])=>`<option value="${esc(w.name)}"></option>`).join('')}</datalist>
+    <button class="btn primary">Adaugă om</button></form><span class="hint" style="margin:0">Pentru cine nu e în pontaj: îi scrii orele direct în tabel. Apare și la ${IN?'Plată':'Încasare'}.</span></div>`;
+  const f=IN?'in':'out';
   h+=`<section class="panel extras" style="margin-top:14px"><h3>Cheltuieli (diesel, rest…)</h3>
-    <p class="hint" style="margin-top:0">Suma se adaugă la totalul de încasare și la cel de plată, ca în Excel.</p><div class="list">`;
-  ex.forEach(x=>{h+=`<div class="li"><input class="pin txt" id="xl_${x.id}" data-xf="label" data-x="${x.id}" value="${esc(x.label)}" placeholder="Denumire" aria-label="Denumire cheltuială" style="flex:1;min-width:0;width:auto">
-    <span class="xsum"><input class="pin txt" id="xi_${x.id}" data-xf="in" data-x="${x.id}" value="${esc(x.inT??fmtH(x.in))}" placeholder="încasare, ex. 450+300" aria-label="Sumă încasare">${x.inT&&/\d\s*[+\-]/.test(x.inT)?`<small>= ${fmtE(x.in)} €</small>`:''}</span>
-    <span class="xsum"><input class="pin txt" id="xo_${x.id}" data-xf="out" data-x="${x.id}" value="${esc(x.outT??fmtH(x.out))}" placeholder="plată" aria-label="Sumă plată">${x.outT&&/\d\s*[+\-]/.test(x.outT)?`<small>= ${fmtE(x.out)} €</small>`:''}</span>
+    <p class="hint" style="margin-top:0">Suma se adaugă la totalul de ${IN?'încasare':'plată'}. Poți scrie mai multe bonuri, ex. 450+300.</p><div class="list">`;
+  ex.forEach(x=>{const T_=x[f+'T'];
+    h+=`<div class="li"><input class="pin txt" id="xl_${x.id}" data-xf="label" data-x="${x.id}" value="${esc(x.label)}" placeholder="Denumire" aria-label="Denumire cheltuială" style="flex:1;min-width:0;width:auto">
+    <span class="xsum"><input class="pin txt" id="x${f}_${x.id}" data-xf="${f}" data-x="${x.id}" value="${esc(T_??fmtH(x[f]))}" placeholder="sumă, ex. 450+300" aria-label="Sumă ${IN?'încasare':'plată'}">${T_&&/\d\s*[+\-]/.test(T_)?`<small>= ${fmtE(x[f])} €</small>`:''}</span>
     <input class="pin note" id="xn_${x.id}" data-xf="note" data-x="${x.id}" value="${esc(x.note||'')}" placeholder="scrie ce vrei" aria-label="Notă cheltuială">
     <button class="btn ghost" data-act="exDel" data-x="${x.id}" aria-label="Șterge linia">×</button></div>`;});
   h+=`</div><div class="below"><button class="btn" data-act="exAdd">Adaugă cheltuială</button></div></section>
-  <div class="legend"><span>Ore plătite goale = la fel ca orele pontate · completează doar dacă omul a lucrat mai puțin</span><span>Avans: poți scrie mai multe sume, ex. 200+170+100</span><span>Tariful schimbat aici devine tariful omului pentru calculele următoare</span></div>`;
+  <div class="legend">${IN?'':'<span>Ore plătite goale = la fel ca orele pontate · completează doar dacă omul a lucrat mai puțin</span><span>Avans: poți scrie mai multe sume, ex. 200+170+100</span>'}<span>Tariful schimbat aici devine tariful omului pentru calculele următoare</span><span>Săptămânile bifate și oamenii adăugați sunt aceiași la Încasare și la Plată</span></div>`;
   return h;
 }
 const pdirty=new Set(),pinflight=new Set(),ptimers=new Map();
@@ -650,57 +660,47 @@ async function flushPay(id){
   catch(e){pinflight.delete(id);writeErr(e);return;}
   pinflight.delete(id);if(pdirty.has(id))flushPay(id);else if(!dirty.size&&!inflight.size&&!pdirty.size)setStatus('ok');
 }
-// Export Bani ca în MAINZ-2.xlsx: două blocuri (încasare | plată), antet negru, rând cu șantierul, total albastru.
-function exportPay(){
+// Export Încasare sau Plată, fiecare separat, în stilul din MAINZ-2.xlsx: antet negru, rând cu șantierul, total albastru.
+function exportPay(mode){
+  const IN=mode==='in';
   const {sel,rows,T,ex}=payCalc();if(!rows.length)return;
   const n=sel.length,ws={};
-  const L0=0,LT=n+1,LR=n+2,LS=n+3;            // stânga: Nume | săpt. | Total | Tarif | Sumă
-  const R0=n+5,RT=R0+n+1,RR=R0+n+2,RS=R0+n+3,RA=R0+n+4,RRest=R0+n+5,RN=R0+n+6; // dreapta + Avans | Rest | Notă
+  const C0=0,CT=n+1,CPH=IN?-1:n+2,CR=IN?n+2:n+3,CS=CR+1,CA=IN?-1:CS+1,CRest=IN?-1:CS+2,CN=IN?CS+1:CS+3;
   const wkLbl=m=>m.slice(8,10)+'-'+addDays(m,5).slice(8,10);
-  const site=sName(S.siteId).toUpperCase();
-  // rând 1: antet negru
-  [[L0,LS,false],[R0,RN,true]].forEach(([a,b,right])=>{
-    xc(ws,a,0,'',XS.bHead);sel.forEach((m,i)=>xc(ws,a+1+i,0,wkLbl(m),XS.bHead));
-    xc(ws,a+n+1,0,right?'Ore plătite':'Total',XS.bHead);xc(ws,a+n+2,0,'Tarif',XS.bHead);xc(ws,a+n+3,0,right?'Plată':'Încasare',XS.bHead);
-    if(right){xc(ws,RA,0,'Avans',XS.bHead);xc(ws,RRest,0,'Rest',XS.bHead);xc(ws,RN,0,'Notă',XS.bHead);}
-    // rând 2: șantierul
-    xc(ws,a,1,site,XS.bSite);for(let c=a+1;c<=b;c++)xc(ws,c,1,'',XS.bSiteFill);
+  // rând 1: antet negru · rând 2: șantierul
+  xc(ws,C0,0,'',XS.bHead);sel.forEach((m,i)=>xc(ws,C0+1+i,0,wkLbl(m),XS.bHead));
+  xc(ws,CT,0,'Total',XS.bHead);if(!IN)xc(ws,CPH,0,'Ore plătite',XS.bHead);
+  xc(ws,CR,0,'Tarif',XS.bHead);xc(ws,CS,0,IN?'Încasare':'Plată',XS.bHead);
+  if(!IN){xc(ws,CA,0,'Avans',XS.bHead);xc(ws,CRest,0,'Rest',XS.bHead);}
+  xc(ws,CN,0,'Notă',XS.bHead);
+  xc(ws,C0,1,sName(S.siteId).toUpperCase(),XS.bSite);for(let c=1;c<=CN;c++)xc(ws,c,1,'',XS.bSiteFill);
+  rows.forEach((r,i)=>{const R=2+i,rr=R+1;
+    xc(ws,C0,R,wName(r.w),i%2?XS.bNameW:XS.bName);r.per.forEach((v,j)=>xc(ws,C0+1+j,R,r.manual?null:v,XS.bNum));
+    if(r.manual)xc(ws,CT,R,r.billed,XS.bNum);else xc(ws,CT,R,r.billed,XS.bNum,`SUM(${colL(C0+1)}${rr}:${colL(C0+n)}${rr})`);
+    if(IN){xc(ws,CR,R,r.rIn,XS.bNum);xc(ws,CS,R,r.inc,XS.bNum,`${colL(CT)}${rr}*N(${colL(CR)}${rr})`);}
+    else{
+      if(r.ovr)xc(ws,CPH,R,r.paidH,XS.bNum);else xc(ws,CPH,R,r.paidH,XS.bNum,`${colL(CT)}${rr}`);
+      xc(ws,CR,R,r.rOut,XS.bNum);xc(ws,CS,R,r.pay,XS.bNum,`N(${colL(CPH)}${rr})*N(${colL(CR)}${rr})`);
+      xc(ws,CA,R,r.adv||null,XS.bNum);xc(ws,CRest,R,r.rest,XS.bNum,`${colL(CS)}${rr}-N(${colL(CA)}${rr})`);
+    }
+    xc(ws,CN,R,[!IN&&r.advText&&('avans '+r.advText),r.note].filter(Boolean).join(' · '),XS.bNote);
   });
-  rows.forEach((r,i)=>{const R=2+i,rr=R+1;const nameS=i%2?XS.bNameW:XS.bName;
-    // stânga
-    xc(ws,L0,R,wName(r.w),nameS);r.per.forEach((v,j)=>xc(ws,L0+1+j,R,v,XS.bNum));
-    xc(ws,LT,R,r.billed,XS.bNum,`SUM(${colL(L0+1)}${rr}:${colL(L0+n)}${rr})`);
-    xc(ws,LR,R,r.rIn,XS.bNum);xc(ws,LS,R,r.inc,XS.bNum,`${colL(LT)}${rr}*N(${colL(LR)}${rr})`);
-    // dreapta
-    xc(ws,R0,R,wName(r.w),nameS);
-    if(r.ovr){r.per.forEach((v,j)=>xc(ws,R0+1+j,R,null,XS.bNum));xc(ws,RT,R,r.paidH,XS.bNum);}
-    else{r.per.forEach((v,j)=>xc(ws,R0+1+j,R,v,XS.bNum));xc(ws,RT,R,r.paidH,XS.bNum,`SUM(${colL(R0+1)}${rr}:${colL(R0+n)}${rr})`);}
-    xc(ws,RR,R,r.rOut,XS.bNum);xc(ws,RS,R,r.pay,XS.bNum,`N(${colL(RT)}${rr})*N(${colL(RR)}${rr})`);
-    xc(ws,RA,R,r.adv||null,XS.bNum);xc(ws,RRest,R,r.rest,XS.bNum,`${colL(RS)}${rr}-N(${colL(RA)}${rr})`);
-    xc(ws,RN,R,[r.advText&&('avans '+r.advText),r.note].filter(Boolean).join(' · '),XS.bNote);
-  });
-  let R=2+rows.length;
-  ex.forEach(x=>{if(!x.in&&!x.out)return;
-    for(let c=L0;c<=LS;c++)xc(ws,c,R,c===L0?(x.label||'Cheltuială'):c===LS?(x.in||null):null,c===L0?XS.bName:XS.bNum);
-    const bon=[x.inT,x.outT].find(v=>v&&/\d\s*[+\-]/.test(v));
-    const xnote=[bon&&('bonuri '+bon),x.note].filter(Boolean).join(' · ');
-    for(let c=R0;c<=RN;c++)xc(ws,c,R,c===R0?(x.label||'Cheltuială'):c===RS?(x.out||null):c===RN?xnote:null,c===R0?XS.bName:c===RN?XS.bNote:XS.bNum);
+  let R=2+rows.length;const f=IN?'in':'out';
+  ex.forEach(x=>{if(!x[f])return;
+    const bon=x[f+'T']&&/\d\s*[+\-]/.test(x[f+'T'])?'bonuri '+x[f+'T']:'';
+    for(let c=C0;c<=CN;c++)xc(ws,c,R,c===C0?(x.label||'Cheltuială'):c===CS?x[f]:c===CN?[bon,x.note].filter(Boolean).join(' · '):null,c===C0?XS.bName:c===CN?XS.bNote:XS.bNum);
     R++;});
-  const last=R,TR=R+1;  // un rând liber, apoi totalul (ca în fișierul tău)
-  xc(ws,L0,TR,'Total',XS.bLbl);xc(ws,R0,TR,'Total',XS.bLbl);
-  xc(ws,LS,TR,T.inc,XS.bGrand,`SUM(${colL(LS)}3:${colL(LS)}${last})`);
-  xc(ws,RS,TR,T.pay,XS.bGrand,`SUM(${colL(RS)}3:${colL(RS)}${last})`);
-  xc(ws,RA,TR,T.adv,XS.bGrand,`SUM(${colL(RA)}3:${colL(RA)}${last})`);
-  xc(ws,RRest,TR,T.rest,XS.bGrand,`SUM(${colL(RRest)}3:${colL(RRest)}${last})`);
-  xc(ws,L0,TR+2,'Diferență (încasare − plată)',XS.bLbl);
-  xc(ws,LS,TR+2,T.diff,XS.bGrand,`${colL(LS)}${TR+1}-${colL(RS)}${TR+1}`);
-  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:TR+2,c:RN}});
-  const blk=[{wch:16},...sel.map(()=>({wch:6})),{wch:7},{wch:6},{wch:9}];
-  ws['!cols']=[...blk,{wch:3},...blk,{wch:8},{wch:9},{wch:22}];
-  ws['!rows']=[{hpt:18},{hpt:20.5}];
+  const last=R,TR=R+1;
+  xc(ws,C0,TR,'Total',XS.bLbl);
+  xc(ws,CS,TR,IN?T.inc:T.pay,XS.bGrand,`SUM(${colL(CS)}3:${colL(CS)}${last})`);
+  if(!IN){xc(ws,CA,TR,T.adv,XS.bGrand,`SUM(${colL(CA)}3:${colL(CA)}${last})`);xc(ws,CRest,TR,T.rest,XS.bGrand,`SUM(${colL(CRest)}3:${colL(CRest)}${last})`);}
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:TR,c:CN}});
+  const cols=[{wch:16},...sel.map(()=>({wch:6})),{wch:7}];
+  if(!IN)cols.push({wch:11});cols.push({wch:6},{wch:10});if(!IN)cols.push({wch:8},{wch:9});cols.push({wch:24});
+  ws['!cols']=cols;ws['!rows']=[{hpt:18},{hpt:20.5}];
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,sheetName(fullRange(sel[0],addDays(sel[n-1],5)),new Set()));
-  save(wb,`Bani_${sName(S.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_S${sel.map(isoWeek).join('-')}.xlsx`);
+  XLSX.utils.book_append_sheet(wb,ws,sheetName((IN?'Încasare ':'Plată ')+fullRange(sel[0],addDays(sel[n-1],5)),new Set()));
+  save(wb,`${IN?'Incasare':'Plata'}_${sName(S.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_S${sel.map(isoWeek).join('-')}.xlsx`);
 }
 
 /* ---------- settings ---------- */
@@ -773,9 +773,10 @@ document.addEventListener('click',e=>{
   else if(a==='importYes'){const d=S.pendingImport&&S.pendingImport.data;if(!d||!S.local)return;
     S.db.replaceAll({sites:d.sites||{},workers:d.workers||{},weeks:d.weeks||{},pay:d.pay||{},config:d.config||{}});S.pendingImport=null;S.siteId=null;render();toast('Backup încărcat.');}
   else if(a==='payLoad'){const p=S.pay.get(t.dataset.id);if(p){S.paySel=new Set(p.weeks);S.paySelSite=S.siteId;render();}}
-  else if(a==='payExport')exportPay();
+  else if(a==='payExport')exportPay(S.view==='incasare'?'in':'out');
   else if(a==='exAdd'){const [id,P]=ensurePeriod();P.extras=(P.extras||[]).concat([{id:rid('x'),label:'',in:null,out:null}]);savePayLater(id);render();
     const ls=document.querySelectorAll('[data-xf="label"]');if(ls.length)ls[ls.length-1].focus();}
+  else if(a==='payRmManual'){const [id,P]=ensurePeriod();const w=t.dataset.w;P.manual=(P.manual||[]).filter(x=>x!==w);delete P.people[w];savePayLater(id);render();}
   else if(a==='exDel'){const [id,P]=ensurePeriod();P.extras=(P.extras||[]).filter(x=>x.id!==t.dataset.x);savePayLater(id);render();}
   else if(a==='noop'){}
   else if(a==='menuClose'){S.menu=null;renderSheet();}
@@ -794,6 +795,11 @@ document.addEventListener('click',e=>{
 document.addEventListener('submit',e=>{
   const f=e.target;const a=f.dataset.act;if(!a)return;e.preventDefault();
   if(a==='addPersonForm'){const i=$('newPerson');addPerson(i.value);i.value='';}
+  else if(a==='payAddForm'){const i=$('payNewPerson');const name=i.value.trim();if(!name)return;i.value='';
+    (async()=>{let w=findWorkerByName(name);if(!w)w=await createWorker(name);
+      const {rows}=payCalc();if(rows.some(r=>r.w===w)){toast(wName(w)+' e deja în listă.');return;}
+      const [id,P]=ensurePeriod();P.manual=(P.manual||[]).concat([w]);savePayLater(id);render();
+      const b=$('pb_'+w);if(b)b.focus();})();}
   else if(a==='addSiteForm'){const i=f.querySelector('input');addSite(i.value);i.value='';}
   else if(a==='addWorkerForm'){const i=$('newWorker');const n=i.value.trim();if(!n)return;
     if(findWorkerByName(n)){toast(n+' există deja în listă.');return;}createWorker(n).then(render);i.value='';}
@@ -810,7 +816,7 @@ document.addEventListener('change',e=>{
     if(f==='adv'||f==='note'){const v=t.value.trim();if(v)pp[f]=v;else delete pp[f];}
     else{const n=numIn(t.value);if(!n.ok){toast('Scrie un număr, ex. 16,5');t.value=fmtH(pp[f]);return;}
       if(n.v==null)delete pp[f];else pp[f]=n.v;
-      if(f!=='paidH'&&n.v!=null){const wo=S.workers.get(w);if(wo&&wo[f]!==n.v){const o={...wo,[f]:n.v};S.workers.set(w,o);putDoc('workers/'+w,o);}}}
+      if(f!=='paidH'&&f!=='billedH'&&n.v!=null){const wo=S.workers.get(w);if(wo&&wo[f]!==n.v){const o={...wo,[f]:n.v};S.workers.set(w,o);putDoc('workers/'+w,o);}}}
     savePayLater(id);setTimeout(render,0);return;
   }
   if(t.dataset.xf){
@@ -1002,7 +1008,7 @@ async function boot(){
     const next=new Map();
     for(const d of s.docs){next.set(d.id,(pdirty.has(d.id)||pinflight.has(d.id))&&S.pay.has(d.id)?S.pay.get(d.id):clone(d.data()));}
     for(const id of [...pdirty,...pinflight])if(!next.has(id)&&S.pay.has(id))next.set(id,S.pay.get(id));
-    S.pay=next;if(S.loaded.weeks&&S.view==='bani')render();
+    S.pay=next;if(S.loaded.weeks&&(S.view==='incasare'||S.view==='plata'))render();
   },subErr);
 }
 render();
