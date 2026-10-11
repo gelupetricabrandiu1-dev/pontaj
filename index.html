@@ -1049,8 +1049,8 @@ function viewConfig(){
 }
 
 /* ---------- actions ---------- */
-function findWorkerByName(name){const n=name.trim().toLowerCase().replace(/\s+/g,' ');
-  for(const [id,w] of S.workers)if(w.name.trim().toLowerCase().replace(/\s+/g,' ')===n)return id;return null;}
+function findWorkerByName(name){const n=normName(name);
+  for(const [id,w] of S.workers)if(normName(w.name)===n)return id;return null;}
 async function createWorker(name){const id=rid('w');const o={name:name.trim().replace(/\s+/g,' '),archived:false};
   S.workers.set(id,o);await putDoc('workers/'+id,o);return id;}
 async function addPerson(name){
