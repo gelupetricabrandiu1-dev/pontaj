@@ -1,4 +1,4 @@
-const CACHE = "pontaj-vd9f9cb55";
+const CACHE = "pontaj-vcf5af761";
 const CORE = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-512-maskable.png"];
 const CDN = ["https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"];
 
