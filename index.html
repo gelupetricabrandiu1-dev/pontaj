@@ -88,10 +88,10 @@ td.cell.zero input{color:var(--warn)}
 td.cell.zero{background:var(--warn-soft)}
 td.cell.away{background:var(--accent-soft)}td.cell.away input::placeholder{color:var(--accent);opacity:1;font-weight:700;font-size:13px}
 td.cell.abs-l input,td.cell.abs-ro input{font-weight:700;font-size:14px}
-td.cell.abs-ro{background:var(--ochre-soft)}td.cell.abs-ro input{color:var(--ochre)}
+td.cell.abs-ro{background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)}td.cell.abs-ro input{color:#111;text-shadow:0 0 3px #FCD116,0 0 3px #FCD116}
 .abspick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.abspick .btn{flex:1 1 auto}
 .abspick .btn.abs-l.on{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
-.abspick .btn.abs-ro.on{background:var(--ochre-soft);border-color:var(--ochre);color:var(--ochre)}
+.abspick .btn.abs-ro.on{background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%);border-color:#111;color:#111;text-shadow:0 0 3px #FCD116,0 0 3px #FCD116}
 td.tot,th.tot{font-family:var(--f-display);font-weight:700;font-size:17px;padding:0 12px;border-left:1px solid var(--line)}
 td.act{padding:0 6px;text-align:right}
 td.act .btn{padding:4px 8px;font-size:12px}
@@ -476,7 +476,7 @@ function viewWeek(){
     <button class="btn" data-act="fillStd" title="${_t('Pune {p} doar în celulele goale',{p:S.std.map(fmtH).join('-')})}">${_t('Completează golurile cu standard')}</button>
     ${prev&&prev.rows.some(r=>!wk.rows.find(x=>x.w===r.w))?`<button class="btn" data-act="copyPrev">${_t('Adaugă lipsă din săpt. trecută')}</button>`:''}
   </div>
-  <div class="legend"><span><i style="background:var(--surface)"></i>${_t('gol = necompletat')}</span><span><i style="background:var(--warn-soft)"></i>${_t('0 = absent')}</span><span><i style="background:var(--warn-soft)"></i><b>L</b> ${_t('Lipsă')}</span><span><i style="background:var(--accent-soft)"></i><b>FR</b> ${_t('a lucrat în ziua aceea pe alt șantier (apare singur)')}</span><span><i style="background:var(--ochre-soft)"></i><b>RO</b> ${_t('Plecat în România')} · ${_t('scrie L sau RO în zi, sau ține apăsat pe zi')}</span><span>${_t('Trage de ⋮⋮ ca să muți un om în sus sau în jos')}</span><span>${_t('Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)')}</span><span><b class="lg-adv">300</b>${_t('Ține apăsat pe o zi pentru avans și notă (pe PC: clic dreapta)')}</span><span>${_t('Ține apăsat pe săptămâna de sus ca s-o ștergi complet')}</span><span>${_t('Enter coboară pe rândul următor · zecimale cu virgulă (7,5)')}</span></div>`;
+  <div class="legend"><span><i style="background:var(--surface)"></i>${_t('gol = necompletat')}</span><span><i style="background:var(--warn-soft)"></i>${_t('0 = absent')}</span><span><i style="background:var(--warn-soft)"></i><b>L</b> ${_t('Lipsă')}</span><span><i style="background:var(--accent-soft)"></i><b>FR</b> ${_t('a lucrat în ziua aceea pe alt șantier (apare singur)')}</span><span><i style="background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)"></i><b>RO</b> ${_t('Plecat în România')} · ${_t('scrie L sau RO în zi, sau ține apăsat pe zi')}</span><span>${_t('Trage de ⋮⋮ ca să muți un om în sus sau în jos')}</span><span>${_t('Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)')}</span><span><b class="lg-adv">300</b>${_t('Ține apăsat pe o zi pentru avans și notă (pe PC: clic dreapta)')}</span><span>${_t('Ține apăsat pe săptămâna de sus ca s-o ștergi complet')}</span><span>${_t('Enter coboară pe rândul următor · zecimale cu virgulă (7,5)')}</span></div>`;
   return h;
 }
 function addPersonForm(){
