@@ -200,7 +200,7 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 <div class="toast" id="toast" hidden></div>
 <div id="sheet"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
 (function(){
 const DAY=86400000;
@@ -647,38 +647,54 @@ async function flushPay(id){
   catch(e){pinflight.delete(id);writeErr(e);return;}
   pinflight.delete(id);if(pdirty.has(id))flushPay(id);else if(!dirty.size&&!inflight.size&&!pdirty.size)setStatus('ok');
 }
+// Export Bani ca în MAINZ-2.xlsx: două blocuri (încasare | plată), antet negru, rând cu șantierul, total albastru.
 function exportPay(){
   const {sel,rows,T,ex}=payCalc();if(!rows.length)return;
-  const n=sel.length,TOT=n+1,RIN=n+2,INC=n+3,R=n+5,PH=R+1,ROUT=R+2,PAY=R+3,ADV=R+4,REST=R+5,NOTE=R+6;
-  const L=colL;const first=4;
-  const aoa=[[`Bani ${sName(S.siteId)} · săpt. ${sel.map(isoWeek).join(', ')} (${dm(sel[0])}–${dm(addDays(sel[n-1],5))}.${sel[n-1].slice(0,4)})`],[]];
-  const head=[];head[0]='Nume';sel.forEach((m,i)=>head[1+i]='S'+isoWeek(m)+' '+dm(m));head[TOT]='Total ore';head[RIN]='Tarif';head[INC]='Încasare';
-  head[R]='Nume';head[PH]='Ore plătite';head[ROUT]='Tarif';head[PAY]='Plată';head[ADV]='Avans';head[REST]='Rest de plată';head[NOTE]='Notă';
-  aoa.push(head);
-  const ws=XLSX.utils.aoa_to_sheet(aoa);const put=(c,rr,cell)=>{ws[L(c)+rr]=cell;};
-  rows.forEach((r,i)=>{const rr=first+i;
-    put(0,rr,{t:'s',v:wName(r.w)});r.per.forEach((v,j)=>put(1+j,rr,{t:'n',v}));
-    put(TOT,rr,{t:'n',v:r.billed,f:`SUM(${L(1)}${rr}:${L(n)}${rr})`});
-    if(r.rIn!=null)put(RIN,rr,{t:'n',v:r.rIn});
-    put(INC,rr,{t:'n',v:r.inc,f:`${L(TOT)}${rr}*${L(RIN)}${rr}`});
-    put(R,rr,{t:'s',v:wName(r.w)});put(PH,rr,{t:'n',v:r.paidH});
-    if(r.rOut!=null)put(ROUT,rr,{t:'n',v:r.rOut});
-    put(PAY,rr,{t:'n',v:r.pay,f:`${L(PH)}${rr}*${L(ROUT)}${rr}`});
-    put(ADV,rr,{t:'n',v:r.adv});
-    put(REST,rr,{t:'n',v:r.rest,f:`${L(PAY)}${rr}-${L(ADV)}${rr}`});
-    const nt=[r.advText&&('avans '+r.advText),r.note].filter(Boolean).join(' · ');if(nt)put(NOTE,rr,{t:'s',v:nt});
+  const n=sel.length,ws={};
+  const L0=0,LT=n+1,LR=n+2,LS=n+3;            // stânga: Nume | săpt. | Total | Tarif | Sumă
+  const R0=n+5,RT=R0+n+1,RR=R0+n+2,RS=R0+n+3,RA=R0+n+4,RRest=R0+n+5,RN=R0+n+6; // dreapta + Avans | Rest | Notă
+  const wkLbl=m=>m.slice(8,10)+'-'+addDays(m,5).slice(8,10);
+  const site=sName(S.siteId).toUpperCase();
+  // rând 1: antet negru
+  [[L0,LS,false],[R0,RN,true]].forEach(([a,b,right])=>{
+    xc(ws,a,0,'',XS.bHead);sel.forEach((m,i)=>xc(ws,a+1+i,0,wkLbl(m),XS.bHead));
+    xc(ws,a+n+1,0,right?'Ore plătite':'Total',XS.bHead);xc(ws,a+n+2,0,'Tarif',XS.bHead);xc(ws,a+n+3,0,right?'Plată':'Încasare',XS.bHead);
+    if(right){xc(ws,RA,0,'Avans',XS.bHead);xc(ws,RRest,0,'Rest',XS.bHead);xc(ws,RN,0,'Notă',XS.bHead);}
+    // rând 2: șantierul
+    xc(ws,a,1,site,XS.bSite);for(let c=a+1;c<=b;c++)xc(ws,c,1,'',XS.bSiteFill);
   });
-  let rr=first+rows.length;
-  ex.forEach(x=>{if(!x.in&&!x.out)return;put(0,rr,{t:'s',v:x.label||'Cheltuială'});put(R,rr,{t:'s',v:x.label||'Cheltuială'});
-    if(x.in)put(INC,rr,{t:'n',v:x.in});if(x.out)put(PAY,rr,{t:'n',v:x.out});rr++;});
-  const last=rr-1,tr=rr+1;
-  put(0,tr,{t:'s',v:'Total'});put(R,tr,{t:'s',v:'Total'});
-  [[TOT,T.billed],[INC,T.inc],[PH,T.paidH],[PAY,T.pay],[ADV,T.adv],[REST,T.rest]].forEach(([c,v])=>put(c,tr,{t:'n',v,f:`SUM(${L(c)}${first}:${L(c)}${last})`}));
-  put(0,tr+2,{t:'s',v:'Diferență (încasare − plată)'});put(INC,tr+2,{t:'n',v:T.diff,f:`${L(INC)}${tr}-${L(PAY)}${tr}`});
-  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr+2,c:NOTE}});
-  const cols=[];cols[0]={wch:22};for(let i=1;i<=n;i++)cols[i]={wch:9};cols[TOT]={wch:10};cols[RIN]={wch:7};cols[INC]={wch:11};cols[n+4]={wch:3};
-  cols[R]={wch:22};cols[PH]={wch:11};cols[ROUT]={wch:7};cols[PAY]={wch:11};cols[ADV]={wch:9};cols[REST]={wch:13};cols[NOTE]={wch:26};ws['!cols']=cols;
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName('Bani S'+sel.map(isoWeek).join('-'),new Set()));
+  rows.forEach((r,i)=>{const R=2+i,rr=R+1;const nameS=i%2?XS.bNameW:XS.bName;
+    // stânga
+    xc(ws,L0,R,wName(r.w),nameS);r.per.forEach((v,j)=>xc(ws,L0+1+j,R,v,XS.bNum));
+    xc(ws,LT,R,r.billed,XS.bNum,`SUM(${colL(L0+1)}${rr}:${colL(L0+n)}${rr})`);
+    xc(ws,LR,R,r.rIn,XS.bNum);xc(ws,LS,R,r.inc,XS.bNum,`${colL(LT)}${rr}*N(${colL(LR)}${rr})`);
+    // dreapta
+    xc(ws,R0,R,wName(r.w),nameS);
+    if(r.ovr){r.per.forEach((v,j)=>xc(ws,R0+1+j,R,null,XS.bNum));xc(ws,RT,R,r.paidH,XS.bNum);}
+    else{r.per.forEach((v,j)=>xc(ws,R0+1+j,R,v,XS.bNum));xc(ws,RT,R,r.paidH,XS.bNum,`SUM(${colL(R0+1)}${rr}:${colL(R0+n)}${rr})`);}
+    xc(ws,RR,R,r.rOut,XS.bNum);xc(ws,RS,R,r.pay,XS.bNum,`N(${colL(RT)}${rr})*N(${colL(RR)}${rr})`);
+    xc(ws,RA,R,r.adv||null,XS.bNum);xc(ws,RRest,R,r.rest,XS.bNum,`${colL(RS)}${rr}-N(${colL(RA)}${rr})`);
+    xc(ws,RN,R,[r.advText&&('avans '+r.advText),r.note].filter(Boolean).join(' · '),XS.bNote);
+  });
+  let R=2+rows.length;
+  ex.forEach(x=>{if(!x.in&&!x.out)return;
+    for(let c=L0;c<=LS;c++)xc(ws,c,R,c===L0?(x.label||'Cheltuială'):c===LS?(x.in||null):null,c===L0?XS.bName:XS.bNum);
+    for(let c=R0;c<=RN;c++)xc(ws,c,R,c===R0?(x.label||'Cheltuială'):c===RS?(x.out||null):null,c===R0?XS.bName:c===RN?XS.bNote:XS.bNum);
+    R++;});
+  const last=R,TR=R+1;  // un rând liber, apoi totalul (ca în fișierul tău)
+  xc(ws,L0,TR,'Total',XS.bLbl);xc(ws,R0,TR,'Total',XS.bLbl);
+  xc(ws,LS,TR,T.inc,XS.bGrand,`SUM(${colL(LS)}3:${colL(LS)}${last})`);
+  xc(ws,RS,TR,T.pay,XS.bGrand,`SUM(${colL(RS)}3:${colL(RS)}${last})`);
+  xc(ws,RA,TR,T.adv,XS.bGrand,`SUM(${colL(RA)}3:${colL(RA)}${last})`);
+  xc(ws,RRest,TR,T.rest,XS.bGrand,`SUM(${colL(RRest)}3:${colL(RRest)}${last})`);
+  xc(ws,L0,TR+2,'Diferență (încasare − plată)',XS.bLbl);
+  xc(ws,LS,TR+2,T.diff,XS.bGrand,`${colL(LS)}${TR+1}-${colL(RS)}${TR+1}`);
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:TR+2,c:RN}});
+  const blk=[{wch:16},...sel.map(()=>({wch:6})),{wch:7},{wch:6},{wch:9}];
+  ws['!cols']=[...blk,{wch:3},...blk,{wch:8},{wch:9},{wch:22}];
+  ws['!rows']=[{hpt:18},{hpt:20.5}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName(fullRange(sel[0],addDays(sel[n-1],5)),new Set()));
   save(wb,`Bani_${sName(S.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_S${sel.map(isoWeek).join('-')}.xlsx`);
 }
 
@@ -761,7 +777,6 @@ document.addEventListener('click',e=>{
   else if(a==='menuInfo'||a==='menuConfirm'||a==='menuBack'){if(S.menu){S.menu.mode=a==='menuInfo'?'info':a==='menuConfirm'?'confirm':'menu';renderSheet();}}
   else if(a==='menuDel'){if(!S.menu)return;const w=S.menu.w;const [id,wk]=ensureWeek();wk.rows=wk.rows.filter(r=>r.w!==w);S.menu=null;
     scheduleSave(id);render();toast(wName(w)+' a fost șters din săptămâna '+isoWeek(S.monday)+'.');}
-  else if(a==='exportWeek')exportWeek();
   else if(a==='openExport'){S.exportOpen=!S.exportOpen;
     if(S.exportOpen){S.expSel.clear();if(S.view==='pontaj'){const id=weekId(S.siteId,S.monday);if(S.weeks.get(id)?.rows.length)S.expSel.add(id);}else weeksInMonth().forEach(id=>S.expSel.add(id));}
     render();}
@@ -829,40 +844,74 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('focusin',e=>{if(e.target.dataset?.r!=null)try{e.target.select()}catch(x){}});
 
-/* ---------- Excel export ---------- */
+/* ---------- Excel export (formatare copiată din Mainz.xlsx și MAINZ-2.xlsx) ---------- */
 function canExport(){return !!(window.XLSX&&S.dl);}
 const colL=i=>XLSX.utils.encode_col(i);
-function weekSheet(wk){
-  const days=[0,1,2,3,4,5].map(d=>addDays(wk.monday,d));
-  const aoa=[[sName(wk.siteId)+' · '+dm(days[0])+'–'+dm(days[5])+'.'+days[5].slice(0,4)+' · săpt. '+isoWeek(wk.monday)],[],
-    ['Nr','Nume',...days.map((s,i)=>DAYS[i]+' '+dm(s)),'Total']];
-  wk.rows.forEach((r,i)=>aoa.push([i+1,wName(r.w),...r.h.map(v=>v==null?null:v),null]));
-  aoa.push([null,'Total']);
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  const first=4,last=3+wk.rows.length,c=calc(wk);
-  wk.rows.forEach((r,i)=>{const n=first+i;ws['I'+n]={t:'n',v:c.rowT[i],f:`SUM(C${n}:H${n})`};});
-  for(let col=2;col<=8;col++){const L=colL(col);const v=col===8?c.total:c.dayT[col-2];ws[L+(last+1)]={t:'n',v,f:`SUM(${L}${first}:${L}${last})`};}
-  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:last,c:8}});
-  ws['!cols']=[{wch:5},{wch:24},...days.map(()=>({wch:9})),{wch:9}];
-  return ws;
+const XB={style:'thin',color:{rgb:'000000'}},XBOX={top:XB,bottom:XB,left:XB,right:XB};
+const xfill=rgb=>({patternType:'solid',fgColor:{rgb}});
+const XS={
+  // Pontaj (Mainz.xlsx): Calibri 11, chenar subțire, gri D9D9D9 pe antet / nr / nume / total
+  pGrey:{font:{name:'Calibri',sz:11},fill:xfill('D9D9D9'),border:XBOX},
+  pGreyB:{font:{name:'Calibri',sz:11,bold:true},fill:xfill('D9D9D9'),border:XBOX},
+  pCell:{font:{name:'Calibri',sz:11},border:XBOX},
+  pTitle:{font:{name:'Calibri',sz:12,bold:true}},
+  // Bani (MAINZ-2.xlsx): antet 2F2F2F alb îngroșat, rând șantier Arial Black 13 pe D9D9D9, corp Arial 10 pe F2F2F2
+  bHead:{font:{name:'Arial',sz:11,bold:true,color:{rgb:'FFFFFF'}},fill:xfill('2F2F2F'),border:XBOX,alignment:{horizontal:'center',vertical:'center'}},
+  bSite:{font:{name:'Arial Black',sz:13,bold:true},fill:xfill('D9D9D9'),border:XBOX,alignment:{horizontal:'left',vertical:'center'}},
+  bSiteFill:{font:{name:'Calibri',sz:11},fill:xfill('D9D9D9'),border:XBOX},
+  bName:{font:{name:'Arial',sz:10},fill:xfill('F2F2F2'),border:XBOX,alignment:{horizontal:'left'}},
+  bNameW:{font:{name:'Arial',sz:10},fill:xfill('FFFFFF'),border:XBOX,alignment:{horizontal:'left'}},
+  bNum:{font:{name:'Arial',sz:10},fill:xfill('F2F2F2'),border:XBOX,alignment:{horizontal:'center'}},
+  bNote:{font:{name:'Arial',sz:10},fill:xfill('F2F2F2'),border:XBOX,alignment:{horizontal:'left'}},
+  bLbl:{font:{name:'Arial',sz:10,bold:true},alignment:{horizontal:'left'}},
+  bGrand:{font:{name:'Arial',sz:12,bold:true,color:{rgb:'0000CC'}},alignment:{horizontal:'center'}}
+};
+// Scrie o celulă cu stil; null/'' devine celulă goală dar formatată (chenar, fundal).
+function xc(ws,c,r,v,s,f){
+  const cell={s};
+  if(f){cell.t='n';cell.v=typeof v==='number'?v:0;cell.f=f;}
+  else if(v==null||v===''){cell.t='s';cell.v='';}
+  else if(typeof v==='number'){cell.t='n';cell.v=v;}
+  else{cell.t='s';cell.v=String(v);}
+  ws[XLSX.utils.encode_cell({c,r})]=cell;
 }
 function sheetName(base,used){let n=base.replace(/[\[\]:*?\/\\]/g,'-').slice(0,31);let k=2;while(used.has(n)){const suf=' ('+k+++')';n=base.slice(0,31-suf.length)+suf;}used.add(n);return n;}
 async function save(wb,filename){
   if(!canExport()){toast('Exportul nu e disponibil în această vizualizare.');return;}
-  try{const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});const r=await S.dl.save({filename,data});
+  try{const data=XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});const r=await S.dl.save({filename,data});
     if(r&&r.status==='saved')toast('Fișierul '+filename+' a fost salvat.');}
   catch(e){const c=e&&e.code;if(c==='declined')return;
     if(c==='rate_limited')toast('Ai deja o fereastră de salvare deschisă. Închide-o și încearcă din nou.');
     else toast('Exportul nu e disponibil aici'+(e&&e.message?': '+e.message:'.'));}
 }
-function exportWeek(){const wk=getWeek(S.siteId,S.monday);if(!wk)return;const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,weekSheet(wk),sheetName(sName(wk.siteId)+' '+dm(wk.monday)+'-'+dm(addDays(wk.monday,5)),new Set()));
-  save(wb,`Pontaj_${sName(wk.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_${wk.monday}.xlsx`);}
+const fullRange=(s,e)=>dm(s)+'-'+dm(e)+'.'+e.slice(0,4);
+// O foaie ca în Mainz.xlsx: până la 2 săptămâni, una lângă alta (A–I și K–S).
+function pontajSheet(pair){
+  const ws={};let maxR=0;
+  pair.forEach((wk,k)=>{
+    const o=k*10;const days=[0,1,2,3,4,5].map(d=>addDays(wk.monday,d));const c=calc(wk);
+    xc(ws,o,0,'',XS.pGrey);xc(ws,o+1,0,fullRange(days[0],days[5]),XS.pGrey);
+    days.forEach((s,i)=>xc(ws,o+2+i,0,s.slice(8,10),XS.pGrey));xc(ws,o+8,0,'',XS.pGrey);
+    wk.rows.forEach((r,i)=>{const R=1+i,rr=R+1;
+      xc(ws,o,R,i+1,XS.pGrey);xc(ws,o+1,R,wName(r.w),XS.pGrey);
+      r.h.forEach((v,d)=>xc(ws,o+2+d,R,v,XS.pCell));
+      xc(ws,o+8,R,c.rowT[i],XS.pGrey,`SUM(${colL(o+2)}${rr}:${colL(o+7)}${rr})`);});
+    const R=1+wk.rows.length,a=2,b=1+wk.rows.length;
+    xc(ws,o,R,'',XS.pGrey);xc(ws,o+1,R,'Total',XS.pGreyB);
+    for(let d=0;d<6;d++)xc(ws,o+2+d,R,c.dayT[d],XS.pGreyB,`SUM(${colL(o+2+d)}${a}:${colL(o+2+d)}${b})`);
+    xc(ws,o+8,R,c.total,XS.pGreyB,`SUM(${colL(o+8)}${a}:${colL(o+8)}${b})`);
+    maxR=Math.max(maxR,R);
+  });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:pair.length>1?18:8}});
+  const blk=[{wch:3},{wch:16},{wch:4},{wch:4},{wch:4},{wch:4},{wch:4},{wch:4},{wch:6}];
+  ws['!cols']=pair.length>1?[...blk,{wch:3},...blk]:blk;
+  return ws;
+}
 function exportWeeks(ids){
   if(!ids.length)return;
   const wks=ids.map(id=>S.weeks.get(id)).filter(Boolean).sort((a,b)=>a.monday.localeCompare(b.monday)||sName(a.siteId).localeCompare(sName(b.siteId),'ro'));
   const sites=new Set(wks.map(w=>w.siteId));const multi=sites.size>1;
-  const cols=wks.map(wk=>({key:weekId(wk.siteId,wk.monday),label:(multi?sName(wk.siteId)+' ':'')+dm(wk.monday)+'–'+dm(addDays(wk.monday,5))}));
+  const cols=wks.map(wk=>({key:weekId(wk.siteId,wk.monday),label:(multi?sName(wk.siteId)+' ':'')+dm(wk.monday)+'-'+dm(addDays(wk.monday,5))}));
   const people=new Map();
   wks.forEach(wk=>{const key=weekId(wk.siteId,wk.monday);wk.rows.forEach(r=>{let p=people.get(r.w);if(!p){p={total:0,days:0,by:{}};people.set(r.w,p);}
     r.h.forEach(v=>{if(v==null)return;p.by[key]=(p.by[key]||0)+v;p.total+=v;if(v>0)p.days++;});});});
@@ -870,19 +919,22 @@ function exportWeeks(ids){
   const wb=XLSX.utils.book_new();const used=new Set();
   const first0=wks[0].monday,lastSat=addDays(wks[wks.length-1].monday,5);
   const siteLabel=multi?[...sites].map(sName).join(', '):sName(wks[0].siteId);
-  const head=['Nume',...cols.map(c=>c.label),'Zile lucrate','Total ore'];
-  const aoa=[['Pontaj '+siteLabel+' · '+dm(first0)+'.'+first0.slice(0,4)+' – '+dm(lastSat)+'.'+lastSat.slice(0,4)+' · '+wks.length+(wks.length===1?' săptămână':' săptămâni')],[],head];
-  rows.forEach(r=>aoa.push([wName(r.w),...cols.map(c=>r.by[c.key]??null),r.days,null]));
-  aoa.push(['Total']);
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  const first=4,last=3+rows.length,nc=cols.length,totC=nc+2;
-  rows.forEach((r,i)=>{const n=first+i;ws[colL(totC)+n]={t:'n',v:r.total,f:nc?`SUM(B${n}:${colL(nc)}${n})`:'0'};});
-  for(let col=1;col<=totC;col++){const L=colL(col);let v=0;rows.forEach(r=>{v+=col<=nc?(r.by[cols[col-1].key]||0):col===nc+1?r.days:r.total;});
-    ws[L+(last+1)]={t:'n',v,f:`SUM(${L}${first}:${L}${last})`};}
-  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:last,c:totC}});
-  ws['!cols']=[{wch:24},...cols.map(()=>({wch:14})),{wch:12},{wch:11}];
+  // Foaia „Total” în același stil ca pontajul
+  const ws={};const nc=cols.length,DAYC=nc+1,TOTC=nc+2;
+  xc(ws,0,0,'Pontaj '+siteLabel+' · '+fullRange(first0,lastSat),XS.pTitle);
+  xc(ws,0,2,'Nume',XS.pGreyB);cols.forEach((c,i)=>xc(ws,1+i,2,c.label,XS.pGreyB));xc(ws,DAYC,2,'Zile',XS.pGreyB);xc(ws,TOTC,2,'Total ore',XS.pGreyB);
+  rows.forEach((r,i)=>{const R=3+i,rr=R+1;xc(ws,0,R,wName(r.w),XS.pGrey);
+    cols.forEach((c,j)=>xc(ws,1+j,R,r.by[c.key]??null,XS.pCell));xc(ws,DAYC,R,r.days,XS.pCell);
+    xc(ws,TOTC,R,r.total,XS.pGrey,`SUM(B${rr}:${colL(nc)}${rr})`);});
+  const TR=3+rows.length;xc(ws,0,TR,'Total',XS.pGreyB);
+  for(let c=1;c<=TOTC;c++){let v=0;rows.forEach(r=>{v+=c<=nc?(r.by[cols[c-1].key]||0):c===DAYC?r.days:r.total;});xc(ws,c,TR,v,XS.pGreyB,`SUM(${colL(c)}4:${colL(c)}${TR})`);}
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:TR,c:TOTC}});
+  ws['!cols']=[{wch:18},...cols.map(()=>({wch:12})),{wch:6},{wch:9}];
   XLSX.utils.book_append_sheet(wb,ws,sheetName('Total',used));
-  wks.forEach(wk=>XLSX.utils.book_append_sheet(wb,weekSheet(wk),sheetName(sName(wk.siteId)+' '+dm(wk.monday)+'-'+dm(addDays(wk.monday,5)),used)));
+  // Câte 2 săptămâni pe foaie, pe fiecare șantier
+  [...sites].forEach(site=>{const sw=wks.filter(w=>w.siteId===site);
+    for(let i=0;i<sw.length;i+=2){const pair=sw.slice(i,i+2);
+      XLSX.utils.book_append_sheet(wb,pontajSheet(pair),sheetName((multi?sName(site)+' ':'')+fullRange(pair[0].monday,addDays(pair[pair.length-1].monday,5)),used));}});
   const slug=multi?'santiere':sName(wks[0].siteId).replace(/[^\p{L}\p{N}]+/gu,'_');
   save(wb,`Pontaj_${slug}_${first0}_${lastSat}.xlsx`);
 }
