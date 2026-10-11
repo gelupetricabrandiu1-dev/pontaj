@@ -1408,7 +1408,8 @@ function makeLocalDB(){
 const localDownloads={async save({filename,data}){
   const blob=data instanceof Blob?data:new Blob([data],{type:/\.xlsx$/.test(filename)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'application/json'});
   try{const f=new File([blob],filename,{type:blob.type});
-    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:filename,text:filename});return {status:'delivered'};}}
+    const phone=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);   // pe laptop/PC descarcă direct, nu deschide fereastra de partajare
+    if(phone&&navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:filename,text:filename});return {status:'delivered'};}}
   catch(e){if(e&&e.name==='AbortError')throw {code:'declined'};}
   const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:'saved'};
