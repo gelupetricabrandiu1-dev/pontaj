@@ -149,6 +149,27 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .kv span{color:var(--muted)}
 .kv b{font-family:var(--f-display);font-size:18px;font-variant-numeric:tabular-nums}
 @media (min-width:641px){.overlay{align-items:center}.sheetbox{border-radius:12px}}
+.pay th.grp{font-size:12px;text-transform:uppercase;letter-spacing:.07em;padding:8px 6px 0;border-bottom:0}
+.pay th.grp.in{color:var(--accent)}
+.pay th.grp.out{color:var(--ochre)}
+.pay td{padding:0 4px}
+.pay td.num{font-family:var(--f-display);font-size:16px;padding:0 8px;text-align:right}
+.pay td.money{font-family:var(--f-display);font-weight:600;font-size:16px;padding:0 10px;text-align:right}
+.pay td.sep,.pay th.sep{border-left:2px solid var(--line-strong)}
+.pay td.rest{font-weight:700}
+.pay td.rest.neg{color:var(--warn)}
+.pin{width:4.6em;height:34px;border:1px solid transparent;border-radius:4px;background:transparent;text-align:right;font-size:15px;font-variant-numeric:tabular-nums;padding:0 6px}
+.pin:hover{border-color:var(--line-strong)}
+.pin:focus{border-color:var(--focus);background:var(--accent-soft);outline:none}
+.pin::placeholder{color:var(--muted)}
+.pin.txt{width:7.5em;text-align:left}
+.pin.note{width:10em;text-align:left}
+.pin.ovr{color:var(--ochre);font-weight:600}
+.pin.missing{background:var(--ochre-soft)}
+.chip.good b{color:var(--accent)}
+.saved{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:13px;color:var(--muted)}
+.saved .btn{padding:4px 10px;font-size:13px}
+.extras .li input.pin{border-color:var(--line)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;z-index:10;max-width:calc(100% - 32px)}
 @media (max-width:640px){
   .weeklabel{font-size:18px}
@@ -166,6 +187,7 @@ body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
     <nav class="tabs" id="tabs">
       <button data-view="pontaj">Pontaj</button>
       <button data-view="rapoarte">Rapoarte</button>
+      <button data-view="bani">Bani</button>
       <button data-view="setari">Oameni și șantiere</button>
     </nav>
     <div class="status" id="status" aria-live="polite">Se încarcă…</div>
@@ -203,7 +225,8 @@ const S={
   sites:new Map(), workers:new Map(), weeks:new Map(), std:[10,10,10,10,10,5],
   view:store.get('pz.view')||'pontaj', siteId:store.get('pz.site'), monday:mondayOf(todayStr()),
   month:todayStr().slice(0,7), repSite:'all', db:null, dl:null, loaded:{sites:false,workers:false,weeks:false}, offline:false,
-  confirmRm:null, exportOpen:false, expSel:new Set(), local:false, pendingImport:null
+  confirmRm:null, exportOpen:false, expSel:new Set(), local:false, pendingImport:null,
+  pay:new Map(), paySel:null, paySelSite:null
 };
 const $=id=>document.getElementById(id);
 
@@ -269,6 +292,7 @@ function render(){
   const m=$('main');
   if(S.view==='rapoarte')m.innerHTML=viewReports();
   else if(S.view==='setari')m.innerHTML=viewSettings();
+  else if(S.view==='bani')m.innerHTML=viewPay();
   else m.innerHTML=viewWeek();
   renderSheet();
   if(fid){const el=$(fid);if(el){el.focus();if(fval!=null&&el.value!==fval)el.value=fval;if(sel)try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
@@ -518,6 +542,146 @@ function exportPanel(){
   return h;
 }
 
+/* ---------- bani (simulare încasare / plată) ---------- */
+const r2=v=>Math.round(v*100)/100;
+const fmtE=v=>v==null?'':r2(v).toLocaleString('ro-RO',{minimumFractionDigits:r2(v)%1?2:0,maximumFractionDigits:2});
+function numIn(str){const s=String(str??'').trim().replace(/\s/g,'').replace(',','.');if(s==='')return {ok:true,v:null};
+  const n=Number(s);if(!isFinite(n)||n<0)return {ok:false};return {ok:true,v:r2(n)};}
+function advSum(s){let t=0;String(s||'').replace(/,/g,'.').replace(/-?\d+(?:\.\d+)?/g,m=>{t+=Number(m);return m;});return r2(t);}
+function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);}
+function periodId(site,mondays){const k=mondays.slice().sort();let id='p_'+site+'_'+k.join('_');
+  if(id.length>180)id='p_'+site+'_'+k[0]+'_'+k[k.length-1]+'_'+hashStr(k.join(''));return id;}
+const payWeeks=()=>[...S.weeks.values()].filter(w=>w.siteId===S.siteId&&w.rows.length).sort((a,b)=>a.monday.localeCompare(b.monday));
+function ensurePaySel(){
+  if(S.paySel&&S.paySelSite===S.siteId)return;
+  S.paySelSite=S.siteId;
+  const withH=payWeeks().filter(w=>calc(w).total>0);
+  S.paySel=new Set(withH.slice(-2).map(w=>w.monday));
+}
+const newPeriod=sel=>({siteId:S.siteId,weeks:sel,people:{},extras:[{id:'x1',label:'Diesel',in:null,out:null},{id:'x2',label:'Rest',in:null,out:null}]});
+function periodView(){const sel=[...S.paySel].sort();const id=periodId(S.siteId,sel);return [id,S.pay.get(id)||newPeriod(sel)];}
+function ensurePeriod(){const [id,p]=periodView();if(!S.pay.has(id))S.pay.set(id,p);return [id,p];}
+function payCalc(){
+  const sel=[...S.paySel].sort();const wks=sel.map(m=>getWeek(S.siteId,m));
+  const order=[],seen=new Set();
+  [...wks].reverse().forEach(wk=>wk&&wk.rows.forEach(r=>{if(!seen.has(r.w)){seen.add(r.w);order.push(r.w);}}));
+  const [,P]=periodView();
+  const rows=order.map(w=>{
+    const per=wks.map(wk=>{const r=wk&&wk.rows.find(x=>x.w===w);return r?rowHours(r):0;});
+    const billed=r2(per.reduce((a,b)=>a+b,0));const pp=P.people[w]||{};const wo=S.workers.get(w)||{};
+    const rIn=pp.rateIn??wo.rateIn??null,rOut=pp.rateOut??wo.rateOut??null;
+    const paidH=pp.paidH??billed;const adv=advSum(pp.adv);
+    const inc=rIn==null?0:r2(billed*rIn),pay=rOut==null?0:r2(paidH*rOut);
+    return {w,per,billed,rIn,rOut,paidH,ovr:pp.paidH!=null,inc,pay,adv,rest:r2(pay-adv),advText:pp.adv||'',note:pp.note||''};
+  });
+  const ex=P.extras||[];const exIn=r2(ex.reduce((a,x)=>a+(x.in||0),0)),exOut=r2(ex.reduce((a,x)=>a+(x.out||0),0));
+  const sum=k=>r2(rows.reduce((a,r)=>a+r[k],0));
+  const T={billed:sum('billed'),paidH:sum('paidH'),inc:r2(sum('inc')+exIn),pay:r2(sum('pay')+exOut),adv:sum('adv'),rest:sum('rest'),
+    missing:rows.filter(r=>r.billed>0&&(r.rIn==null||r.rOut==null)).length};
+  T.diff=r2(T.inc-T.pay);
+  return {sel,rows,P,T,ex};
+}
+function viewPay(){
+  if(!activeSites().length)return `<div class="sheet" style="margin-top:18px"><div class="empty"><h3>Niciun șantier încă</h3>Adaugă un șantier în „Oameni și șantiere”.</div></div>`;
+  ensurePaySel();
+  const all=payWeeks();
+  let h=`<div class="toolbar"><h2 style="margin-right:8px">Bani</h2>${siteSelect('siteSel',S.siteId)}<div class="grow"></div>
+    <button class="btn" data-act="payExport"${!S.paySel.size||!canExport()?' disabled':''}>Exportă Excel</button></div>
+  <section class="panel" style="margin-top:14px"><h3>Săptămânile calculate</h3>`;
+  if(!all.length)h+=`<p class="hint">Nu există pontaj la ${esc(sName(S.siteId))}.</p>`;
+  else{
+    h+=`<div class="wkgrid">`;
+    all.forEach(wk=>{const sat=addDays(wk.monday,5);
+      h+=`<label class="wk" title="${dm(wk.monday)}–${dm(sat)}.${sat.slice(0,4)} · ${fmtH(calc(wk).total)} h"><input type="checkbox" id="pw_${wk.monday}" data-paywk="${wk.monday}"${S.paySel.has(wk.monday)?' checked':''}>
+        <span><b>${isoWeek(wk.monday)}</b><small>${dm(wk.monday)}–${dm(sat)}</small></span></label>`;});
+    h+=`</div>`;
+    const saved=[...S.pay.entries()].filter(([,p])=>p.siteId===S.siteId&&p.weeks&&p.weeks.length).sort((a,b)=>b[1].weeks[0].localeCompare(a[1].weeks[0]));
+    if(saved.length)h+=`<div class="saved">Calcule salvate: ${saved.map(([id,p])=>`<button class="btn${id===periodId(S.siteId,[...S.paySel])?' primary':''}" data-act="payLoad" data-id="${esc(id)}">${p.weeks.map(isoWeek).join(', ')}</button>`).join('')}</div>`;
+  }
+  h+=`</section>`;
+  if(!S.paySel.size){h+=`<div class="sheet"><div class="empty"><h3>Bifează una sau mai multe săptămâni</h3>Orele vin automat din pontaj, apoi completezi tarifele și avansurile.</div></div>`;return h;}
+  const {sel,rows,T,ex}=payCalc();
+  h+=`<div class="chips">
+    <div class="chip"><b>${fmtE(T.inc)} €</b> încasare (simulare)</div>
+    <div class="chip"><b>${fmtE(T.pay)} €</b> plată</div>
+    <div class="chip good"><b>${fmtE(T.diff)} €</b> diferență</div>
+    <div class="chip"><b>${fmtE(T.adv)} €</b> avansuri</div>
+    <div class="chip"><b>${fmtE(T.rest)} €</b> rest de plată</div>
+    ${T.missing?`<div class="chip warn"><b>${T.missing}</b> fără tarif</div>`:''}</div>`;
+  h+=`<div class="sheet"><table class="pay"><thead>
+    <tr><th class="name"></th><th class="grp in" colspan="${sel.length+3}">Încasare · simulare</th><th class="grp out sep" colspan="6">Plată</th></tr>
+    <tr><th class="name">Nume</th>${sel.map(m=>`<th>S${isoWeek(m)}</th>`).join('')}<th>Ore</th><th>Tarif €/h</th><th>Încasare €</th>
+    <th class="sep">Ore plătite</th><th>Tarif €/h</th><th>Plată €</th><th>Avans €</th><th>Rest €</th><th>Notă</th></tr></thead><tbody>`;
+  rows.forEach((r,ri)=>{
+    h+=`<tr><td class="name">${esc(wName(r.w))}</td>${r.per.map(v=>`<td class="num">${fmtH(v)}</td>`).join('')}
+      <td class="num"><b>${fmtH(r.billed)}</b></td>
+      <td><input class="pin${r.rIn==null&&r.billed?' missing':''}" id="pi_${r.w}" data-pf="rateIn" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rIn)}" placeholder="–" aria-label="Tarif încasare ${esc(wName(r.w))}"></td>
+      <td class="money">${fmtE(r.inc)}</td>
+      <td class="sep"><input class="pin${r.ovr?' ovr':''}" id="ph_${r.w}" data-pf="paidH" data-w="${r.w}" inputmode="decimal" value="${r.ovr?fmtH(r.paidH):''}" placeholder="${fmtH(r.billed)}" title="Gol = la fel ca orele pontate" aria-label="Ore plătite ${esc(wName(r.w))}"></td>
+      <td><input class="pin${r.rOut==null&&r.billed?' missing':''}" id="po_${r.w}" data-pf="rateOut" data-w="${r.w}" inputmode="decimal" value="${fmtH(r.rOut)}" placeholder="–" aria-label="Tarif plată ${esc(wName(r.w))}"></td>
+      <td class="money">${fmtE(r.pay)}</td>
+      <td><input class="pin txt" id="pa_${r.w}" data-pf="adv" data-w="${r.w}" value="${esc(r.advText)}" placeholder="${ri===0?'ex. 200+170':''}" title="${r.adv?'Total: '+fmtE(r.adv)+' €':''}" aria-label="Avans ${esc(wName(r.w))}"></td>
+      <td class="money rest${r.rest<0?' neg':''}">${fmtE(r.rest)}</td>
+      <td><input class="pin note" id="pn_${r.w}" data-pf="note" data-w="${r.w}" value="${esc(r.note)}" placeholder="" aria-label="Notă ${esc(wName(r.w))}"></td></tr>`;
+  });
+  ex.forEach(x=>{h+=`<tr><td class="name" style="color:var(--muted)">${esc(x.label||'Cheltuială')}</td><td colspan="${sel.length+2}"></td><td class="money">${x.in?fmtE(x.in):''}</td><td class="sep" colspan="2"></td><td class="money">${x.out?fmtE(x.out):''}</td><td colspan="3"></td></tr>`;});
+  h+=`</tbody><tfoot><tr><td class="name">Total</td>${sel.map((m,i)=>`<td class="num">${fmtH(r2(rows.reduce((a,r)=>a+r.per[i],0)))}</td>`).join('')}
+    <td class="num">${fmtH(T.billed)}</td><td></td><td class="money">${fmtE(T.inc)}</td>
+    <td class="sep num">${fmtH(T.paidH)}</td><td></td><td class="money">${fmtE(T.pay)}</td><td class="money">${fmtE(T.adv)}</td><td class="money">${fmtE(T.rest)}</td><td></td></tr></tfoot></table></div>`;
+  h+=`<section class="panel extras" style="margin-top:14px"><h3>Cheltuieli (diesel, rest…)</h3>
+    <p class="hint" style="margin-top:0">Suma se adaugă la totalul de încasare și la cel de plată, ca în Excel.</p><div class="list">`;
+  ex.forEach(x=>{h+=`<div class="li"><input class="pin txt" id="xl_${x.id}" data-xf="label" data-x="${x.id}" value="${esc(x.label)}" placeholder="Denumire" aria-label="Denumire cheltuială" style="flex:1;min-width:0;width:auto">
+    <input class="pin" id="xi_${x.id}" data-xf="in" data-x="${x.id}" inputmode="decimal" value="${fmtH(x.in)}" placeholder="încasare" aria-label="Sumă încasare">
+    <input class="pin" id="xo_${x.id}" data-xf="out" data-x="${x.id}" inputmode="decimal" value="${fmtH(x.out)}" placeholder="plată" aria-label="Sumă plată">
+    <button class="btn ghost" data-act="exDel" data-x="${x.id}" aria-label="Șterge linia">×</button></div>`;});
+  h+=`</div><div class="below"><button class="btn" data-act="exAdd">Adaugă cheltuială</button></div></section>
+  <div class="legend"><span>Ore plătite goale = la fel ca orele pontate · completează doar dacă omul a lucrat mai puțin</span><span>Avans: poți scrie mai multe sume, ex. 200+170+100</span><span>Tariful schimbat aici devine tariful omului pentru calculele următoare</span></div>`;
+  return h;
+}
+const pdirty=new Set(),pinflight=new Set(),ptimers=new Map();
+function savePayLater(id){pdirty.add(id);if(!S.db){setStatus('local');return;}setStatus('saving');
+  clearTimeout(ptimers.get(id));ptimers.set(id,setTimeout(()=>flushPay(id),600));}
+async function flushPay(id){
+  if(pinflight.has(id))return;pinflight.add(id);pdirty.delete(id);
+  try{await S.db.doc('pay/'+id).set(clone({...S.pay.get(id),updatedAt:new Date().toISOString()}));}
+  catch(e){pinflight.delete(id);writeErr(e);return;}
+  pinflight.delete(id);if(pdirty.has(id))flushPay(id);else if(!dirty.size&&!inflight.size&&!pdirty.size)setStatus('ok');
+}
+function exportPay(){
+  const {sel,rows,T,ex}=payCalc();if(!rows.length)return;
+  const n=sel.length,TOT=n+1,RIN=n+2,INC=n+3,R=n+5,PH=R+1,ROUT=R+2,PAY=R+3,ADV=R+4,REST=R+5,NOTE=R+6;
+  const L=colL;const first=4;
+  const aoa=[[`Bani ${sName(S.siteId)} · săpt. ${sel.map(isoWeek).join(', ')} (${dm(sel[0])}–${dm(addDays(sel[n-1],5))}.${sel[n-1].slice(0,4)})`],[]];
+  const head=[];head[0]='Nume';sel.forEach((m,i)=>head[1+i]='S'+isoWeek(m)+' '+dm(m));head[TOT]='Total ore';head[RIN]='Tarif';head[INC]='Încasare';
+  head[R]='Nume';head[PH]='Ore plătite';head[ROUT]='Tarif';head[PAY]='Plată';head[ADV]='Avans';head[REST]='Rest de plată';head[NOTE]='Notă';
+  aoa.push(head);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);const put=(c,rr,cell)=>{ws[L(c)+rr]=cell;};
+  rows.forEach((r,i)=>{const rr=first+i;
+    put(0,rr,{t:'s',v:wName(r.w)});r.per.forEach((v,j)=>put(1+j,rr,{t:'n',v}));
+    put(TOT,rr,{t:'n',v:r.billed,f:`SUM(${L(1)}${rr}:${L(n)}${rr})`});
+    if(r.rIn!=null)put(RIN,rr,{t:'n',v:r.rIn});
+    put(INC,rr,{t:'n',v:r.inc,f:`${L(TOT)}${rr}*${L(RIN)}${rr}`});
+    put(R,rr,{t:'s',v:wName(r.w)});put(PH,rr,{t:'n',v:r.paidH});
+    if(r.rOut!=null)put(ROUT,rr,{t:'n',v:r.rOut});
+    put(PAY,rr,{t:'n',v:r.pay,f:`${L(PH)}${rr}*${L(ROUT)}${rr}`});
+    put(ADV,rr,{t:'n',v:r.adv});
+    put(REST,rr,{t:'n',v:r.rest,f:`${L(PAY)}${rr}-${L(ADV)}${rr}`});
+    const nt=[r.advText&&('avans '+r.advText),r.note].filter(Boolean).join(' · ');if(nt)put(NOTE,rr,{t:'s',v:nt});
+  });
+  let rr=first+rows.length;
+  ex.forEach(x=>{if(!x.in&&!x.out)return;put(0,rr,{t:'s',v:x.label||'Cheltuială'});put(R,rr,{t:'s',v:x.label||'Cheltuială'});
+    if(x.in)put(INC,rr,{t:'n',v:x.in});if(x.out)put(PAY,rr,{t:'n',v:x.out});rr++;});
+  const last=rr-1,tr=rr+1;
+  put(0,tr,{t:'s',v:'Total'});put(R,tr,{t:'s',v:'Total'});
+  [[TOT,T.billed],[INC,T.inc],[PH,T.paidH],[PAY,T.pay],[ADV,T.adv],[REST,T.rest]].forEach(([c,v])=>put(c,tr,{t:'n',v,f:`SUM(${L(c)}${first}:${L(c)}${last})`}));
+  put(0,tr+2,{t:'s',v:'Diferență (încasare − plată)'});put(INC,tr+2,{t:'n',v:T.diff,f:`${L(INC)}${tr}-${L(PAY)}${tr}`});
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr+2,c:NOTE}});
+  const cols=[];cols[0]={wch:22};for(let i=1;i<=n;i++)cols[i]={wch:9};cols[TOT]={wch:10};cols[RIN]={wch:7};cols[INC]={wch:11};cols[n+4]={wch:3};
+  cols[R]={wch:22};cols[PH]={wch:11};cols[ROUT]={wch:7};cols[PAY]={wch:11};cols[ADV]={wch:9};cols[REST]={wch:13};cols[NOTE]={wch:26};ws['!cols']=cols;
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName('Bani S'+sel.map(isoWeek).join('-'),new Set()));
+  save(wb,`Bani_${sName(S.siteId).replace(/[^\p{L}\p{N}]+/gu,'_')}_S${sel.map(isoWeek).join('-')}.xlsx`);
+}
+
 /* ---------- settings ---------- */
 function viewSettings(){
   const sites=[...S.sites.entries()].sort((a,b)=>(a[1].archived-b[1].archived)||a[1].name.localeCompare(b[1].name,'ro'));
@@ -582,11 +746,16 @@ document.addEventListener('click',e=>{
     m.set(id,o);putDoc((kind==='site'?'sites/':'workers/')+id,o);if(kind==='site'&&o.archived&&S.siteId===id)S.siteId=activeSites()[0]?.[0]||null;render();}
   else if(a==='backupOut'){
     const obj=o=>Object.fromEntries([...o.entries()].map(([k,v])=>[k,clone(v)]));
-    const data={app:'pontaj',version:1,exportedAt:new Date().toISOString(),sites:obj(S.sites),workers:obj(S.workers),weeks:obj(S.weeks),config:{settings:{std:S.std.slice()}}};
+    const data={app:'pontaj',version:1,exportedAt:new Date().toISOString(),sites:obj(S.sites),workers:obj(S.workers),weeks:obj(S.weeks),pay:obj(S.pay),config:{settings:{std:S.std.slice()}}};
     S.dl.save({filename:'backup-pontaj-'+todayStr()+'.json',data:JSON.stringify(data)}).then(r=>{if(r&&r.status==='saved')toast('Backup salvat.');}).catch(e=>{if(!e||e.code!=='declined')toast('Backup-ul nu s-a putut salva.');});}
   else if(a==='importNo'){S.pendingImport=null;render();}
   else if(a==='importYes'){const d=S.pendingImport&&S.pendingImport.data;if(!d||!S.local)return;
-    S.db.replaceAll({sites:d.sites||{},workers:d.workers||{},weeks:d.weeks||{},config:d.config||{}});S.pendingImport=null;S.siteId=null;render();toast('Backup încărcat.');}
+    S.db.replaceAll({sites:d.sites||{},workers:d.workers||{},weeks:d.weeks||{},pay:d.pay||{},config:d.config||{}});S.pendingImport=null;S.siteId=null;render();toast('Backup încărcat.');}
+  else if(a==='payLoad'){const p=S.pay.get(t.dataset.id);if(p){S.paySel=new Set(p.weeks);S.paySelSite=S.siteId;render();}}
+  else if(a==='payExport')exportPay();
+  else if(a==='exAdd'){const [id,P]=ensurePeriod();P.extras=(P.extras||[]).concat([{id:rid('x'),label:'',in:null,out:null}]);savePayLater(id);render();
+    const ls=document.querySelectorAll('[data-xf="label"]');if(ls.length)ls[ls.length-1].focus();}
+  else if(a==='exDel'){const [id,P]=ensurePeriod();P.extras=(P.extras||[]).filter(x=>x.id!==t.dataset.x);savePayLater(id);render();}
   else if(a==='noop'){}
   else if(a==='menuClose'){S.menu=null;renderSheet();}
   else if(a==='menuInfo'||a==='menuConfirm'||a==='menuBack'){if(S.menu){S.menu.mode=a==='menuInfo'?'info':a==='menuConfirm'?'confirm':'menu';renderSheet();}}
@@ -615,6 +784,22 @@ document.addEventListener('submit',e=>{
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='siteSel'){S.siteId=t.value;store.set('pz.site',t.value);S.confirmRm=null;render();return;}
+  if(t.dataset.paywk){if(t.checked)S.paySel.add(t.dataset.paywk);else S.paySel.delete(t.dataset.paywk);render();return;}
+  if(t.dataset.pf){
+    const [id,P]=ensurePeriod();const w=t.dataset.w,f=t.dataset.pf;const pp=P.people[w]=P.people[w]||{};
+    if(f==='adv'||f==='note'){const v=t.value.trim();if(v)pp[f]=v;else delete pp[f];}
+    else{const n=numIn(t.value);if(!n.ok){toast('Scrie un număr, ex. 16,5');t.value=fmtH(pp[f]);return;}
+      if(n.v==null)delete pp[f];else pp[f]=n.v;
+      if(f!=='paidH'&&n.v!=null){const wo=S.workers.get(w);if(wo&&wo[f]!==n.v){const o={...wo,[f]:n.v};S.workers.set(w,o);putDoc('workers/'+w,o);}}}
+    savePayLater(id);setTimeout(render,0);return;
+  }
+  if(t.dataset.xf){
+    const [id,P]=ensurePeriod();const x=(P.extras||[]).find(e=>e.id===t.dataset.x);if(!x)return;const f=t.dataset.xf;
+    if(f==='label')x.label=t.value.trim();
+    else{const n=numIn(t.value);if(!n.ok){toast('Scrie o sumă, ex. 1250');t.value=fmtH(x[f]);return;}x[f]=n.v;
+      if(f==='in'&&x.out==null&&n.v!=null)x.out=n.v;}
+    savePayLater(id);setTimeout(render,0);return;
+  }
   if(t.id==='repSite'){S.repSite=t.value;render();return;}
   if(t.id==='backupIn'){const f=t.files&&t.files[0];if(!f)return;const rd=new FileReader();
     rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.app!=='pontaj'||!d.weeks||!d.workers||!d.sites)throw 0;
@@ -752,6 +937,12 @@ async function boot(){
     for(const id of [...dirty,...inflight])if(!next.has(id)&&S.weeks.has(id))next.set(id,S.weeks.get(id));
     const cur=weekId(S.siteId,S.monday);if(!next.has(cur)&&S.weeks.has(cur)&&!S.weeks.get(cur).rows.length)next.set(cur,S.weeks.get(cur));
     S.weeks=next;S.loaded.weeks=true;afterData();
+  },subErr);
+  db.collection('pay').onSnapshot(s=>{
+    const next=new Map();
+    for(const d of s.docs){next.set(d.id,(pdirty.has(d.id)||pinflight.has(d.id))&&S.pay.has(d.id)?S.pay.get(d.id):clone(d.data()));}
+    for(const id of [...pdirty,...pinflight])if(!next.has(id)&&S.pay.has(id))next.set(id,S.pay.get(id));
+    S.pay=next;if(S.loaded.weeks&&S.view==='bani')render();
   },subErr);
 }
 render();
