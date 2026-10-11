@@ -593,7 +593,9 @@ function idSection(w){
 /* ---------- sincronizare Google Drive (doar APK / GitHub Pages; claude.ai blochează Google) ---------- */
 const GS={clientId:'183660427250-i12c4pcc1ptck0q8ii7j3d5mn6bspps0.apps.googleusercontent.com',
   scope:'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email',
-  token:null,exp:0,email:store.get('pz.gemail')||'',last:+(store.get('pz.glast')||0),busy:false,err:'',ready:false,applying:false,timer:null,
+  token:(()=>{try{const t=JSON.parse(store.get('pz.gtok')||'null');return t&&t.exp>Date.now()+60000?t.tok:null;}catch(e){return null;}})(),
+  exp:(()=>{try{const t=JSON.parse(store.get('pz.gtok')||'null');return t&&t.exp>Date.now()+60000?t.exp:0;}catch(e){return 0;}})(),
+  email:store.get('pz.gemail')||'',last:+(store.get('pz.glast')||0),busy:false,err:'',ready:false,applying:false,timer:null,
   onLocalWrite(){if(!this.applying&&this.valid())this.later(5000);},
   valid(){return !!this.token&&Date.now()<this.exp-60000;},
   later(ms){clearTimeout(this.timer);this.timer=setTimeout(()=>gSync(),ms);}
@@ -601,21 +603,23 @@ const GS={clientId:'183660427250-i12c4pcc1ptck0q8ii7j3d5mn6bspps0.apps.googleuse
 function gisLoad(){if(!S.local||GS._l)return GS._l;GS._l=new Promise(res=>{const sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.async=true;
   sc.onload=()=>{GS.ready=true;res(true);if(S.view==='config')render();};sc.onerror=()=>{GS.err=_t('Nu mă pot conecta la Google. Verifică internetul.');res(false);};document.head.appendChild(sc);});return GS._l;}
 // trebuie apelată direct din clic (altfel browserul blochează fereastra Google)
-function gConnect(){
+function gConnect(silent){
   if(!window.google||!google.accounts||!google.accounts.oauth2){toast(_t('Se încarcă Google… încearcă din nou în câteva secunde.'));gisLoad();return;}
   const tc=google.accounts.oauth2.initTokenClient({client_id:GS.clientId,scope:GS.scope,login_hint:GS.email||undefined,
     callback:async r=>{if(r.error){GS.err=r.error_description||r.error;render();return;}
-      GS.token=r.access_token;GS.exp=Date.now()+(+r.expires_in||3600)*1000;GS.err='';
+      GS.token=r.access_token;GS.exp=Date.now()+(+r.expires_in||3600)*1000;GS.err='';store.set('pz.gtok',JSON.stringify({tok:GS.token,exp:GS.exp}));
       try{const u=await gFetch('https://www.googleapis.com/oauth2/v3/userinfo').then(x=>x.json());if(u.email){GS.email=u.email;store.set('pz.gemail',u.email);}}catch(e){}
       render();gSync(true);},
-    error_callback:e=>{GS.err=e&&e.type==='popup_closed'?'':_t('Conectarea la Google n-a reușit.');render();}});
+    error_callback:e=>{if(silent)return;GS.err=e&&e.type==='popup_closed'?'':_t('Conectarea la Google n-a reușit.');render();}});
   tc.requestAccessToken({prompt:GS.email?'':'consent'});
 }
+// după o oră Google închide legătura; dacă știm contul, prima atingere din aplicație o reface singură (fereastra Google se închide imediat)
+document.addEventListener('pointerup',()=>{if(!S.local||!GS.email||GS.valid()||GS.auto||!window.google||!google.accounts||!google.accounts.oauth2)return;GS.auto=true;try{gConnect(true);}catch(e){}setTimeout(()=>{GS.auto=false;},120000);},true);
 function gDisconnect(){try{if(GS.token&&window.google)google.accounts.oauth2.revoke(GS.token,()=>{});}catch(e){}
-  GS.token=null;GS.exp=0;GS.email='';GS.last=0;store.set('pz.gemail','');store.set('pz.glast','0');render();toast(_t('Te-ai deconectat de la Google. Datele rămân în telefon.'));}
+  GS.token=null;GS.exp=0;GS.email='';GS.last=0;store.set('pz.gemail','');store.set('pz.gtok','');store.set('pz.glast','0');render();toast(_t('Te-ai deconectat de la Google. Datele rămân în telefon.'));}
 async function gFetch(url,opts={}){
   const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+GS.token}});
-  if(r.status===401){GS.token=null;GS.exp=0;render();throw new Error('auth');}
+  if(r.status===401){GS.token=null;GS.exp=0;store.set('pz.gtok','');render();throw new Error('auth');}
   if(!r.ok)throw new Error('drive '+r.status);return r;}
 const DRV='https://www.googleapis.com/drive/v3/files',UPL='https://www.googleapis.com/upload/drive/v3/files';
 async function gFind(name){const q=encodeURIComponent(`name='${name}'`);
@@ -662,7 +666,7 @@ function gPanel(){
     ${GS.err?`<p class="hint" style="color:var(--warn)">${esc(GS.err)}</p>`:''}
     <div class="below">${GS.valid()
       ?`<button class="btn primary" data-act="gSync"${GS.busy?' disabled':''}>${_t(GS.busy?'Se sincronizează…':'Sincronizează acum')}</button><button class="btn ghost" data-act="gOut">${_t('Deconectează')}</button>`
-      :`<button class="btn primary" data-act="gIn">${_t(GS.email?'Reconectează-te la Google':'Conectează-te cu Google')}</button>${GS.email?`<button class="btn ghost" data-act="gOut">${_t('Deconectează')}</button>`:''}`}</div>
+      :`<button class="btn primary" data-act="gIn">${_t(GS.email?'Sincronizează acum':'Conectează-te cu Google')}</button>${GS.email?`<button class="btn ghost" data-act="gOut">${_t('Deconectează')}</button>`:''}`}</div>
     <p class="hint">${_t('Datele stau într-un folder ascuns al aplicației din Drive-ul tău. Sincronizarea pornește singură după fiecare modificare, cât timp ești conectat.')}</p></section>`;
 }
 
