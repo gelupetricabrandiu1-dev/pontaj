@@ -130,6 +130,15 @@ tr:hover td.name{color:var(--accent)}
 .wk input:checked+span small{color:var(--accent-ink)}
 .wk input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}
 td.name[data-w]{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:context-menu}
+.grip{display:inline-flex;align-items:center;justify-content:center;width:26px;height:36px;margin:0 2px 0 -8px;padding:0;border:0;background:none;color:var(--line-strong);cursor:grab;touch-action:none;vertical-align:middle;border-radius:4px}
+.grip svg{fill:currentColor}
+.grip:hover,.grip:focus-visible{color:var(--accent)}
+tr.dragging{position:relative;z-index:3;cursor:grabbing}
+tr.dragging td,tr.dragging td.name{background:var(--accent-soft)}
+tr.dragging .grip{color:var(--accent);cursor:grabbing}
+tr.drop-before td{box-shadow:inset 0 3px 0 var(--accent)}
+tr.drop-after td{box-shadow:inset 0 -3px 0 var(--accent)}
+body.is-dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 .overlay{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheetbox{background:var(--surface);width:100%;max-width:460px;border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}
 .sheetbox h3{margin-bottom:4px}
@@ -310,7 +319,7 @@ function viewWeek(){
   days.forEach((s,d)=>{h+=`<th class="${d===5?'col-sat':''}"${s===today?' style="color:var(--accent)"':''}>${DAYS[d]}<span class="dn">${s.slice(8,10)}</span></th>`;});
   h+=`<th class="tot">Total</th><th></th></tr></thead><tbody>`;
   wk.rows.forEach((r,i)=>{
-    h+=`<tr><td class="name" data-w="${r.w}" title="Ține apăsat pentru meniu"><span class="nr">${i+1}</span>${esc(wName(r.w))}</td>`;
+    h+=`<tr><td class="name" data-w="${r.w}" title="Ține apăsat pentru meniu"><button type="button" class="grip" id="g_${r.w}" data-grip="${i}" aria-label="Mută pe ${esc(wName(r.w))} (trage sau folosește săgețile sus/jos)" title="Trage ca să muți"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><circle cx="2.5" cy="3" r="1.5"/><circle cx="7.5" cy="3" r="1.5"/><circle cx="2.5" cy="8" r="1.5"/><circle cx="7.5" cy="8" r="1.5"/><circle cx="2.5" cy="13" r="1.5"/><circle cx="7.5" cy="13" r="1.5"/></svg></button><span class="nr">${i+1}</span>${esc(wName(r.w))}</td>`;
     r.h.forEach((v,d)=>{h+=`<td class="cell${d===5?' col-sat':''}${v===0?' zero':''}"><input id="c_${r.w}_${d}" data-r="${i}" data-d="${d}" inputmode="decimal" autocomplete="off" value="${fmtH(v)}" placeholder="·" aria-label="${esc(wName(r.w))}, ${DAYS[d]} ${dm(days[d])}"></td>`;});
     h+=`<td class="tot" id="t_${r.w}">${fmtH(c.rowT[i])}</td><td class="act">
       <button class="btn ghost" data-act="rowStd" data-w="${r.w}" title="Completează rândul cu programul standard (${S.std.map(fmtH).join('-')})">Std</button></td></tr>`;
@@ -322,7 +331,7 @@ function viewWeek(){
     <button class="btn" data-act="fillStd" title="Pune ${S.std.map(fmtH).join('-')} doar în celulele goale">Completează golurile cu standard</button>
     ${prev&&prev.rows.some(r=>!wk.rows.find(x=>x.w===r.w))?'<button class="btn" data-act="copyPrev">Adaugă lipsă din săpt. trecută</button>':''}
   </div>
-  <div class="legend"><span><i style="background:var(--surface)"></i>gol = necompletat</span><span><i style="background:var(--warn-soft)"></i>0 = absent</span><span>Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)</span><span>Enter coboară pe rândul următor · zecimale cu virgulă (7,5)</span></div>`;
+  <div class="legend"><span><i style="background:var(--surface)"></i>gol = necompletat</span><span><i style="background:var(--warn-soft)"></i>0 = absent</span><span>Trage de ⋮⋮ ca să muți un om în sus sau în jos</span><span>Ține apăsat pe un nume pentru Informații / Șterge (pe PC: clic dreapta)</span><span>Enter coboară pe rândul următor · zecimale cu virgulă (7,5)</span></div>`;
   return h;
 }
 function addPersonForm(){
@@ -423,9 +432,48 @@ function renderSheet(){
   const b=el.querySelector('.sheetbox .btn');if(b)b.focus();
 }
 function openMenu(w){if(S.menu&&S.menu.w===w)return;S.menu={w,mode:'menu'};try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}renderSheet();}
+/* ---------- drag to reorder ---------- */
+let drag=null;
+function moveRow(from,to){
+  const [id,wk]=ensureWeek();if(from===to||!wk.rows[from]||to<0||to>=wk.rows.length)return false;
+  const [r]=wk.rows.splice(from,1);wk.rows.splice(to,0,r);scheduleSave(id);return true;
+}
+function clearDropMarks(){document.querySelectorAll('tr.drop-before,tr.drop-after').forEach(r=>r.classList.remove('drop-before','drop-after'));}
+document.addEventListener('pointerdown',e=>{
+  const g=e.target.closest('[data-grip]');if(!g)return;
+  e.preventDefault();
+  const tr=g.closest('tr');const rows=[...tr.parentElement.children];
+  drag={from:+g.dataset.grip,to:+g.dataset.grip,tr,rows,startY:e.clientY+window.scrollY,
+    mids:rows.map(r=>{const b=r.getBoundingClientRect();return b.top+window.scrollY+b.height/2;})};
+  try{g.setPointerCapture(e.pointerId);}catch(x){}
+  tr.classList.add('dragging');document.body.classList.add('is-dragging');
+});
+document.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  if(e.clientY<70)window.scrollBy(0,-12);else if(e.clientY>window.innerHeight-70)window.scrollBy(0,12);
+  const dy=e.clientY+window.scrollY-drag.startY;
+  drag.tr.style.transform=`translateY(${dy}px)`;
+  const y=drag.mids[drag.from]+dy;
+  let to=0;drag.mids.forEach((m,i)=>{if(i!==drag.from&&m<y)to++;});
+  drag.to=to;clearDropMarks();
+  if(to>drag.from)drag.rows[to].classList.add('drop-after');else if(to<drag.from)drag.rows[to].classList.add('drop-before');
+});
+function endDrag(){
+  if(!drag)return;const {from,to,tr}=drag;drag=null;
+  tr.style.transform='';tr.classList.remove('dragging');document.body.classList.remove('is-dragging');clearDropMarks();
+  if(moveRow(from,to))render();
+}
+document.addEventListener('pointerup',endDrag);
+document.addEventListener('pointercancel',endDrag);
+document.addEventListener('keydown',e=>{
+  const g=e.target.closest&&e.target.closest('[data-grip]');if(!g||(e.key!=='ArrowUp'&&e.key!=='ArrowDown'))return;
+  e.preventDefault();const from=+g.dataset.grip;const w=g.id;
+  if(moveRow(from,from+(e.key==='ArrowUp'?-1:1))){render();const n=$(w);if(n)n.focus();}
+});
+
 let lp=null;
-document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.name[data-w]');if(!td)return;e.preventDefault();openMenu(td.dataset.w);});
-document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.name[data-w]');if(!td||e.pointerType==='mouse')return;
+document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.name[data-w]');if(!td)return;e.preventDefault();if(drag||e.target.closest('[data-grip]'))return;openMenu(td.dataset.w);});
+document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.name[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-grip]'))return;
   clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>openMenu(td.dataset.w),550)};});
 document.addEventListener('pointermove',e=>{if(lp&&Math.hypot(e.clientX-lp.x,e.clientY-lp.y)>10){clearTimeout(lp.t);lp=null;}});
 ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>{if(lp){clearTimeout(lp.t);lp=null;}}));
