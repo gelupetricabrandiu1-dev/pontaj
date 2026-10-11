@@ -88,10 +88,10 @@ td.cell.zero input{color:var(--warn)}
 td.cell.zero{background:var(--warn-soft)}
 td.cell.away{background:var(--accent-soft)}td.cell.away input::placeholder{color:var(--accent);opacity:1;font-weight:700;font-size:13px}
 td.cell.abs-l input,td.cell.abs-ro input{font-weight:700;font-size:14px}
-td.cell.abs-ro{background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)}td.cell.abs-ro input{color:#111;text-shadow:0 0 3px #FCD116,0 0 3px #FCD116}
+td.cell.abs-ro{background:var(--surface)}td.cell.abs-ro input{color:var(--ink,inherit);background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%) no-repeat;background-size:15px 10px;background-position:calc(50% - 13px) 50%;padding-left:19px;box-sizing:border-box}td.cell.abs-ro input:focus{background-color:var(--accent-soft)}
 .abspick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.abspick .btn{flex:1 1 auto}
 .abspick .btn.abs-l.on{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
-.abspick .btn.abs-ro.on{background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%);border-color:#111;color:#111;text-shadow:0 0 3px #FCD116,0 0 3px #FCD116}
+.abspick .btn.abs-ro.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.abspick .btn.abs-ro b::before{content:'';display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:0;background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)}
 td.tot,th.tot{font-family:var(--f-display);font-weight:700;font-size:17px;padding:0 12px;border-left:1px solid var(--line)}
 td.act{padding:0 6px;text-align:right}
 td.act .btn{padding:4px 8px;font-size:12px}
