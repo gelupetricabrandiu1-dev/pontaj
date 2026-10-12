@@ -4,7 +4,7 @@ const CDN = ["https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then(async (c) => {
-    await c.addAll(CORE);
+    await c.addAll(CORE.map((u) => new Request(u, { cache: "reload" })));
     await Promise.all(CDN.map((u) => fetch(u, { mode: "no-cors" }).then((r) => c.put(u, r)).catch(() => {})));
   }));
   self.skipWaiting();
@@ -20,7 +20,7 @@ self.addEventListener("fetch", (e) => {
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     if (isPage) {
-      try { const r = await fetch(e.request); if (r.ok) c.put("./index.html", r.clone()); return r; }
+      try { const r = await fetch(e.request.url, { cache: "no-cache", credentials: "same-origin" }); if (r.ok) c.put("./index.html", r.clone()); return r; }
       catch (_) { return (await c.match("./index.html")) || Response.error(); }
     }
     const hit = await c.match(e.request);
