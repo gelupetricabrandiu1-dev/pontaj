@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 13:42 · 2d2054c7";</script>
+<script>window.PZ_VER="17.10.2026 14:42 · 64a551be";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -263,6 +263,49 @@ input.field.abbr{width:4.2em;flex:0 0 auto;text-align:center;text-transform:uppe
   .status{text-align:left}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+/* ---------- mișcare și atingere ---------- */
+:root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.32,.64,1)}
+.btn,.lockbtn,nav.tabs button,.sug{transition:transform .14s var(--ease-out),background-color .18s,border-color .18s,color .18s,box-shadow .18s;-webkit-tap-highlight-color:transparent}
+.btn:active:not(:disabled),.lockbtn:active:not(:disabled){transform:scale(.96)}
+td.cell input{transition:background-color .15s}
+td.cell{transition:background-color .2s}
+thead th .dk{transition:transform .14s var(--ease-out)}thead th .dk:active{transform:scale(.88)}
+@keyframes pzFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pzSheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes pzPop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pzViewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pzToast{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
+.overlay{animation:pzFadeIn .2s ease-out both}
+.sheetbox{animation:pzSheetUp .32s var(--ease-out) both;will-change:transform;touch-action:pan-y}
+#sheet.closing .overlay{animation:pzFadeIn .2s ease-in reverse both}
+#sheet.closing .sheetbox{transition:transform .22s cubic-bezier(.4,0,1,1);transform:translateY(105%)!important;animation:none}
+.sheetbox.dragging{animation:none;transition:none}
+.sheetbox.snap{transition:transform .3s var(--ease-spring)}
+@media (min-width:641px){.sheetbox{animation-name:pzPop;animation-duration:.24s}#sheet.closing .sheetbox{transform:translateY(12px) scale(.98)!important;opacity:0;transition:transform .18s,opacity .18s}}
+#main.view-in{animation:pzViewIn .26s var(--ease-out) both}
+.toast:not([hidden]){animation:pzToast .28s var(--ease-out) both}
+.sheetbox::before{content:'';align-self:center;width:40px;height:5px;border-radius:3px;background:var(--line-strong);margin:-8px 0 4px;flex:0 0 auto}
+@media (min-width:641px){.sheetbox::before{display:none}}
+nav.tabs .ti{display:none}
+nav.tabs .ts{display:none}
+/* telefon: meniul jos, la îndemâna degetului */
+@media (max-width:640px){
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:16;display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin:0;width:auto;flex-wrap:nowrap;
+    background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.06);
+    padding:4px max(4px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
+  nav.tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:12px;padding:6px 2px 5px;font-size:11.5px;line-height:1.1;min-height:52px;min-width:0}
+  nav.tabs button .ti{display:block;width:24px;height:24px;transition:transform .2s var(--ease-spring)}
+  nav.tabs button .tl{display:none}
+  nav.tabs button .ts{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+  nav.tabs button[aria-current="page"] .ti{transform:translateY(-1px) scale(1.08)}
+  nav.tabs button:active{transform:scale(.94)}
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+  .sharebar{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
+
 </style>
 
 <div class="wrap">
@@ -450,11 +493,19 @@ function applyUndoBtn(){const b=$('undoBtn');if(!b)return;b.innerHTML=UNDO_SVG;c
   b.disabled=!has||S.locked;const l=_t('Anulează ultima modificare');b.title=l+' (Ctrl+Z)';b.setAttribute('aria-label',l);}
 
 /* ---------- render ---------- */
+const TAB_ICON=(()=>{const sv=d=>`<svg class="ti" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  return {pontaj:sv('<rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 2.8v3.4M16 2.8v3.4M7.5 14l2.2 2.2 4.5-4.5"/>'),
+    rapoarte:sv('<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>'),
+    imprumut:sv('<circle cx="12" cy="12" r="8.5"/><path d="M15 8.6a4 4 0 1 0 0 6.8M7.4 11h6M7.4 13.2h6"/>'),
+    setari:sv('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.6 14.3c2.6-.4 4.6 1.2 5 4.2"/>'),
+    config:sv('<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>')};})();
 function render(){
   const ae=document.activeElement;const fid=ae&&ae.id;const fval=ae&&ae.tagName==='INPUT'?ae.value:null;
   let sel=null;try{sel=ae&&ae.tagName==='INPUT'?[ae.selectionStart,ae.selectionEnd]:null}catch(e){}
   const NAV={pontaj:'Pontaj',rapoarte:'Rapoarte',imprumut:'Împrumuturi',setari:'Oameni și șantiere',config:'Setări'};
-  document.querySelectorAll('#tabs button').forEach(b=>{b.textContent=_t(NAV[b.dataset.view]);b.setAttribute('aria-current',b.dataset.view===S.view?'page':'false');});
+  const NAVS={pontaj:'Pontaj',rapoarte:'Rapoarte',imprumut:'Împrumuturi',setari:'Oameni',config:'Setări'};
+  document.querySelectorAll('#tabs button').forEach(b=>{const v=b.dataset.view,k=LANG+v;if(b.dataset.k!==k){b.dataset.k=k;b.innerHTML=TAB_ICON[v]+`<span class="tl">${esc(_t(NAV[v]))}</span><span class="ts">${esc(_t(NAVS[v]))}</span>`;b.setAttribute('aria-label',_t(NAV[v]));}
+    b.setAttribute('aria-current',v===S.view?'page':'false');});
   $('brand').innerHTML=`${_t('Pontaj')} <small>${_t('șantiere')}</small>`;if(S.status)setStatus(S.status);
   $('banner').innerHTML=S.offline?`<div class="banner">${_t('Pagina nu se poate conecta la baza de date în această vizualizare. Modificările rămân doar până închizi pagina.')}</div>`:'';
   const m=$('main');
@@ -754,7 +805,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelec
 const rowHours=r=>r?r.h.reduce((a,v)=>a+(v||0),0):0;
 function renderSheet(){
   const el=$('sheet');const m=S.menu;
-  if(!m||(S.view!=='pontaj'&&m.mode!=='rename')){el.innerHTML='';return;}
+  if(!m||(S.view!=='pontaj'&&m.mode!=='rename')){if(el.firstChild&&!el.classList.contains('closing')&&!matchMedia('(prefers-reduced-motion: reduce)').matches){el.classList.add('closing');el.dataset.key='';
+      clearTimeout(el._ct);el._ct=setTimeout(()=>{el.classList.remove('closing');if(!S.menu)el.innerHTML='';else renderSheet();},210);}else if(!el.classList.contains('closing'))el.innerHTML='';return;}
+  if(el.classList.contains('closing')){clearTimeout(el._ct);el.classList.remove('closing');el.innerHTML='';el.dataset.key='';}
   if(m.mode==='rename'){const key='rn_'+m.w;if(el.dataset.key===key&&el.firstChild)return;el.dataset.key=key;
     el.innerHTML=`<div class="overlay" data-act="menuClose"><div class="sheetbox" data-act="noop" role="dialog" aria-modal="true" aria-label="${_t('Editează numele')}">
       <h3>${_t('Editează numele')}</h3>
@@ -830,11 +883,23 @@ function renderSheet(){
   const b=el.querySelector('.sheetbox .btn');if(b)b.focus();
 }
 // butonul Înapoi al telefonului: închide fereastra deschisă / revine la pagina anterioară; pe prima pagină nu iese din aplicație
+function viewIn(){const m=$('main');if(!m)return;m.classList.remove('view-in');void m.offsetWidth;m.classList.add('view-in');}
+// trage fereastra de jos în jos ca s-o închizi (ca pe telefon)
+(()=>{let d=null;
+  document.addEventListener('pointerdown',e=>{const box=e.target.closest&&e.target.closest('#sheet .sheetbox');if(!box||e.pointerType==='mouse')return;
+    if(e.target.closest('input,textarea,select,.dayopts'))return;const top=box.getBoundingClientRect().top;
+    if(box.scrollTop>0&&e.clientY-top>56)return;d={box,y:e.clientY,dy:0,t:Date.now(),on:false};},true);
+  document.addEventListener('pointermove',e=>{if(!d)return;const dy=e.clientY-d.y;if(!d.on){if(dy>8){d.on=true;d.box.classList.add('dragging');}else if(dy<-8){d=null;return;}else return;}
+    d.dy=Math.max(0,dy);d.box.style.transform=`translateY(${d.dy}px)`;},{passive:true});
+  const up=()=>{if(!d)return;const {box,dy,t,on}=d;d=null;if(!on)return;box.classList.remove('dragging');
+    const fast=dy/(Date.now()-t)>0.6;if(dy>110||(fast&&dy>40)){S.skipClick=true;setTimeout(()=>{S.skipClick=false;},350);S.menu=null;S.photoDel=null;renderSheet();}
+    else{box.classList.add('snap');box.style.transform='';setTimeout(()=>box.classList.remove('snap'),320);}};
+  document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);})();
 function navPush(){if(!S.local)return;try{history.pushState({pz:1},'');}catch(e){}}
 window.addEventListener('popstate',()=>{if(!S.local)return;
   if(S.menu){S.menu=null;S.photoDel=null;$('sheet').dataset.key='';renderSheet();}
   else if(S.exportOpen){S.exportOpen=false;render();}
-  else if(S.navStack.length){S.view=S.navStack.pop();store.set('pz.view',S.view);S.confirmRm=null;render();window.scrollTo(0,0);}
+  else if(S.navStack.length){S.view=S.navStack.pop();store.set('pz.view',S.view);S.confirmRm=null;render();viewIn();window.scrollTo(0,0);}
   else toast(_t('Ești pe prima pagină a aplicației.'));
   navPush();S.needGuard=true;});
 // o intrare în istoric făcută după o atingere (Chrome ignoră la Înapoi intrările făcute fără atingere)
@@ -1136,7 +1201,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.act==='undo'){undo();return;}
   if(t.dataset.act==='pickPerson'){const f=t.closest('form');const i=f&&f.querySelector('input.field');if(i){i.value=t.dataset.name;t.closest('.sugbox').hidden=true;f.requestSubmit();}return;}
   if(UNDO_ACTS.has(t.dataset.act)||(t.dataset.act==='loanDel'&&S.confirmLoan===t.dataset.id))snap();
-  if(t.dataset.view){if(t.dataset.view!==S.view){S.navStack.push(S.view);if(S.navStack.length>30)S.navStack.shift();navPush();}S.view=t.dataset.view;store.set('pz.view',S.view);S.confirmRm=null;S.exportOpen=false;render();return;}
+  if(t.dataset.view){const chg=t.dataset.view!==S.view;if(chg){S.navStack.push(S.view);if(S.navStack.length>30)S.navStack.shift();navPush();}S.view=t.dataset.view;store.set('pz.view',S.view);S.confirmRm=null;S.exportOpen=false;render();if(chg){viewIn();window.scrollTo({top:0});}return;}
   const a=t.dataset.act;
   if(a==='wk'){S.monday=addDays(S.monday,+t.dataset.n);S.confirmRm=null;render();}
   else if(a==='today'){S.monday=mondayOf(todayStr());render();}
