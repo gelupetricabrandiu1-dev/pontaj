@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 21:58 · 08b04cb4";</script>
+<script>window.PZ_VER="17.10.2026 22:02 · d01877a4";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -626,15 +626,17 @@ function updateTotalsDOM(){
 /* ---------- reports ---------- */
 function monthData(month,site){
   const people=new Map();const weeks=new Map();const siteIds=new Set();
+  // ziua marcată cu alt șantier (prescurtarea din colț, rows[].st) se numără la acel șantier, nu la cel al pontajului
   for(const wk of S.weeks.values()){
-    if(site!=='all'&&wk.siteId!==site)continue;
     let touches=false;
     for(let d=0;d<6;d++){
-      const date=addDays(wk.monday,d);if(date.slice(0,7)!==month)continue;touches=true;
+      const date=addDays(wk.monday,d);if(date.slice(0,7)!==month)continue;if(site==='all'||wk.siteId===site)touches=true;
       for(const r of wk.rows){const v=r.h[d];if(v==null)continue;
+        const eff=(r.st&&r.st[d])||wk.siteId;if(site!=='all'&&eff!==site)continue;
         let p=people.get(r.w);if(!p){p={total:0,days:0,by:{}};people.set(r.w,p);}
-        const key=site==='all'?wk.siteId:wk.monday;
+        const key=site==='all'?eff:wk.monday;
         p.by[key]=(p.by[key]||0)+v;p.total+=v;if(v>0)p.days++;
+        if(site==='all')siteIds.add(eff);else weeks.set(wk.monday,wk);
       }
     }
     if(touches){if(site==='all')siteIds.add(wk.siteId);else weeks.set(wk.monday,wk);}
