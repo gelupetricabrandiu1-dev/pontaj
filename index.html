@@ -87,6 +87,7 @@ td.cell input:focus{background:var(--accent-soft);outline:2px solid var(--focus)
 td.cell.zero input{color:var(--warn)}
 td.cell.zero{background:var(--warn-soft)}
 td.cell.empty{background:var(--empty)}
+thead th.dcol,td.cell{width:3.6em;min-width:3.6em;max-width:3.6em;box-sizing:border-box}@media (max-width:640px){thead th.dcol,td.cell{width:2.8em;min-width:2.8em;max-width:2.8em}}
 thead th .dk{display:block;margin:4px auto 0;width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
 body.locked thead th .dk{pointer-events:none;opacity:.5}
 td.cell{position:relative}
@@ -496,7 +497,7 @@ function viewWeek(){
     <div class="chip${c.missing?' warn':''}" id="chipMissing"><b id="sumMissing">${c.missing}</b> ${_t('zile necompletate')}</div>
   </div>`;
   h+=`<div class="sheet"><table><thead><tr><th class="name">${_t('Nume')}</th>`;
-  days.forEach((s,d)=>{h+=`<th class="${d===5?'col-sat':''}"${s===today?' style="color:var(--accent)"':''}>${DAYS[d]}<span class="dn">${s.slice(8,10)}</span><input type="checkbox" class="dk" id="dk_${d}" data-act="dayTick" data-d="${d}"${dayDone(wk,d)?' checked':''}${S.std[d]==null?' disabled':''} aria-label="${_t('Bifează toată ziua de {z} ({p} ore)',{z:DAYF[d],p:fmtH(S.std[d])})}" title="${_t('Bifează toată ziua ({p} ore) · debifează ca să golești ziua',{p:fmtH(S.std[d])})}"></th>`;});
+  days.forEach((s,d)=>{h+=`<th class="dcol${d===5?' col-sat':''}"${s===today?' style="color:var(--accent)"':''}>${DAYS[d]}<span class="dn">${s.slice(8,10)}</span><input type="checkbox" class="dk" id="dk_${d}" data-act="dayTick" data-d="${d}"${dayDone(wk,d)?' checked':''}${S.std[d]==null?' disabled':''} aria-label="${_t('Bifează toată ziua de {z} ({p} ore)',{z:DAYF[d],p:fmtH(S.std[d])})}" title="${_t('Bifează toată ziua ({p} ore) · debifează ca să golești ziua',{p:fmtH(S.std[d])})}"></th>`;});
   h+=`<th class="tot">Total</th><th></th></tr></thead><tbody>`;
   wk.rows.forEach((r,i)=>{
     h+=`<tr><td class="name" data-w="${r.w}" title="${_t('Ține apăsat pentru meniu')}"><button type="button" class="grip" id="g_${r.w}" data-grip="${i}" aria-label="${_t('Mută pe {n} (trage sau folosește săgețile sus/jos)',{n:esc(wName(r.w))})}" title="${_t('Trage ca să muți')}"><svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><circle cx="2.5" cy="3" r="1.5"/><circle cx="7.5" cy="3" r="1.5"/><circle cx="2.5" cy="8" r="1.5"/><circle cx="7.5" cy="8" r="1.5"/><circle cx="2.5" cy="13" r="1.5"/><circle cx="7.5" cy="13" r="1.5"/></svg></button><span class="nr">${i+1}</span>${esc(wName(r.w))}</td>`;
