@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 17:22 · 9564ad14";</script>
+<script>window.PZ_VER="17.10.2026 17:32 · 429f0f68";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -274,6 +274,7 @@ input.field.abbr{width:4.2em;flex:0 0 auto;text-align:center;text-transform:uppe
   --accent:#000000;--accent-ink:#ffe600;--accent-soft:#fff3a0;--ochre:#6b4500;--ochre-soft:#ffe9b0;--warn:#b00000;--warn-soft:#ffd6d6;--empty:#ffe600;--sat:#f2f2f2;--focus:#0047ff;--scrim:rgba(0,0,0,.55);color-scheme:light}
 :root[data-skin="contrast"] td.cell,:root[data-skin="contrast"] th,:root[data-skin="contrast"] td{border-color:#000}
 :root[data-skin="contrast"] td.cell.ok input{color:#000}
+.credit{margin:28px 0 8px;text-align:center;font-size:13px;color:var(--muted);letter-spacing:.04em}.credit b{color:var(--ink);font-weight:700}
 .skinpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .skin{display:flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font:inherit;font-weight:600}
 .skin[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
@@ -1133,7 +1134,8 @@ function viewConfig(){
      ${S.local?`<label class="btn" for="backupIn">${_t('Încarcă backup')}</label><input type="file" id="backupIn" accept=".json,application/json" hidden>`:''}</div>
      ${S.pendingImport?`<div class="banner"><b>${_t('Înlocuiești toate datele din telefon cu backup-ul din {d}?',{d:esc(S.pendingImport.date)})}</b><br>${S.pendingImport.summary}. ${_t('Datele actuale din telefon se pierd.')}
        <div class="below"><button class="btn danger-fill" data-act="importYes">${_t('Da, înlocuiește')}</button><button class="btn" data-act="importNo">${_t('Nu')}</button></div></div>`:''}</section>
-  </div>`;
+  </div>
+  <p class="credit">Created by <b>Brandiu PK</b></p>`;
 }
 
 /* ---------- împrumuturi (avansuri date oamenilor și ce au dat înapoi) ---------- */
