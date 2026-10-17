@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 13:11 · 76600030";</script>
+<script>window.PZ_VER="17.10.2026 13:20 · 0a2e4a74";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -884,7 +884,7 @@ document.addEventListener('focusin',e=>{if(fillable(e.target))placeFill(e.target
 document.addEventListener('click',e=>{const i=e.target&&e.target.closest&&e.target.closest('input[data-r]');if(i&&fillable(i)&&!i.closest('td').querySelector('.fillh.act'))placeFill(i);});
 const fillSrcEl=()=>fill&&((fill.srcId&&$(fill.srcId))||fill.src);
 function fillTargets(){if(!fill||!fill.to)return [];const src=fillSrcEl();
-  if(fill.kind==='cell'){const r0=+src.dataset.r,d0=+src.dataset.d,r1=+fill.to.dataset.r,d1=+fill.to.dataset.d;const out=[];
+  if(fill.kind==='cell'){const r0=+src.dataset.r,d0=+src.dataset.d,r1=r0,d1=+fill.to.dataset.d;const out=[];   // doar pe același rând
     for(let r=Math.min(r0,r1);r<=Math.max(r0,r1);r++)for(let d=Math.min(d0,d1);d<=Math.max(d0,d1);d++){if(r===r0&&d===d0)continue;
       const i=document.querySelector(`input[data-r="${r}"][data-d="${d}"]`);if(i)out.push(i);}return out;}
   const list=[...document.querySelectorAll(`input[data-pf="${fill.pf}"]`)];const to=(fill.to.id&&$(fill.to.id))||fill.to;const a=list.indexOf(src),b=list.indexOf(to);if(a<0||b<0)return [];
@@ -897,7 +897,12 @@ document.addEventListener('pointerdown',e=>{const h=e.target.closest('[data-fill
   fill={src:src2,srcId:src2.id,kind:src2.dataset.r!=null?'cell':'pay',pf:src2.dataset.pf,to:null};try{h.setPointerCapture(e.pointerId);}catch(x){}document.body.classList.add('filling');},true);
 document.addEventListener('pointermove',e=>{if(!fill)return;e.preventDefault();
   const el=document.elementFromPoint(e.clientX,e.clientY);let i=null;
-  if(el&&el.closest){if(fill.kind==='cell')i=el.closest('td.cell')?.querySelector('input[data-r]');else i=el.closest('tr')?.querySelector(`input[data-pf="${fill.pf}"]`);}
+  if(fill.kind==='cell'){   // doar pe rândul de unde ai pornit: ziua se alege după poziția pe orizontală, chiar dacă degetul alunecă în sus/jos
+    const src=fillSrcEl();let best=null,bd=1e9;
+    if(src)for(const inp of document.querySelectorAll(`input[data-r="${src.dataset.r}"]`)){const b=inp.closest('td').getBoundingClientRect();
+      const dx=e.clientX<b.left?b.left-e.clientX:e.clientX>b.right?e.clientX-b.right:0;if(dx<bd){bd=dx;best=inp;}}
+    i=best;}
+  else if(el&&el.closest)i=el.closest('tr')?.querySelector(`input[data-pf="${fill.pf}"]`);
   if(i&&i!==fill.to){fill.to=i;fillMark();}
   const sc=fillSrcEl().closest('.sheet,.tablewrap,.tbl')||document.querySelector('.sheet');if(sc){const b=sc.getBoundingClientRect();if(e.clientX>b.right-30)sc.scrollLeft+=10;else if(e.clientX<b.left+30)sc.scrollLeft-=10;}
   if(e.clientY<70)window.scrollBy(0,-10);else if(e.clientY>window.innerHeight-70)window.scrollBy(0,10);},{passive:false});
