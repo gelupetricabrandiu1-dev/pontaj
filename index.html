@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 17:32 · 429f0f68";</script>
+<script>window.PZ_VER="17.10.2026 21:58 · 08b04cb4";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -1260,14 +1260,14 @@ document.addEventListener('click',e=>{
   else if(a==='backupOut')(async()=>{
     const obj=o=>Object.fromEntries([...o.entries()].map(([k,v])=>[k,clone(v)]));
     const files={};for(const w of S.workers.values())for(const ref of Object.values(w.docs||{})){try{const b=await FS.blob(ref);if(b)files[ref]=await blobToDataURL(b);}catch(e){}}
-    const data={app:'pontaj',version:1,exportedAt:new Date().toISOString(),sites:obj(S.sites),workers:obj(S.workers),weeks:obj(S.weeks),pay:obj(S.pay),loans:obj(S.loans),files,config:{settings:{std:S.std.slice()}}};
+    const data={app:'pontaj',version:1,exportedAt:new Date().toISOString(),sites:obj(S.sites),workers:obj(S.workers),weeks:obj(S.weeks),loans:obj(S.loans),files,config:{settings:{std:S.std.slice()}}};
     S.dl.save({filename:'backup-pontaj-'+todayStr()+'.json',data:JSON.stringify(data)}).then(r=>{if(r&&r.status==='saved')toast(_t('Backup salvat.'));}).catch(e=>{if(!e||e.code!=='declined')toast(_t('Backup-ul nu s-a putut salva.'));});})();
   else if(a==='importNo'){S.pendingImport=null;render();}
   else if(a==='importYes')(async()=>{const d=S.pendingImport&&S.pendingImport.data;if(!d||!S.local)return;
     for(const [ref,u] of Object.entries(d.files||{})){try{const b0=await dataURLToBlob(u);const b=CR.pw?await encBlob(b0):b0;await FS.idbReq('readwrite',st=>st.put(b,ref));FS.cache.delete(ref);}catch(e){}}
     // backup-ul încărcat devine varianta cea mai nouă: altfel o ștergere mai veche din Drive l-ar putea șterge din nou la sincronizare
     const now=Date.now(),fresh=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,{...v,_t:now}]));
-    S.db.replaceAll({sites:fresh(d.sites),workers:fresh(d.workers),weeks:fresh(d.weeks),pay:fresh(d.pay),loans:fresh(d.loans),config:fresh(d.config)});S.pendingImport=null;GS.onLocalWrite();S.siteId=null;render();toast(_t('Backup încărcat.'));})();
+    S.db.replaceAll({sites:fresh(d.sites),workers:fresh(d.workers),weeks:fresh(d.weeks),loans:fresh(d.loans),config:fresh(d.config)});S.pendingImport=null;GS.onLocalWrite();S.siteId=null;render();toast(_t('Backup încărcat.'));})();
   else if(a==='noop'){}
   else if(a==='menuClose'){S.menu=null;S.photoDel=null;renderSheet();}
   else if(a==='menuRename'){if(S.menu){S.menu={w:S.menu.w,mode:'rename'};$('sheet').dataset.key='';renderSheet();}}
@@ -1550,7 +1550,15 @@ function exportWeeks(ids){
 }
 
 /* ---------- boot ---------- */
+// Gelu a cerut pe 17 octombrie 2026 ștergerea oricăror date despre bani: calculele vechi (colecția pay) și tarifele oamenilor (rateIn/rateOut).
+// Rulează pe fiecare dispozitiv și pe claude.ai când datele sunt deschise (nu cu parolă greșită și nu când sunt criptate fără cheie).
+let purgeT=null;
+function schedulePurge(){clearTimeout(purgeT);purgeT=setTimeout(purgeMoney,2500);}
+function purgeMoney(){if(S.decoy||S.encLocked||!S.db||!(S.loaded.workers&&S.loaded.weeks))return;
+  for(const id of [...S.pay.keys()]){S.pay.delete(id);pdirty.delete(id);S.db.doc('pay/'+id).delete().catch(()=>{});}
+  for(const [id,w] of S.workers)if(w&&('rateIn' in w||'rateOut' in w)){const o={...w};delete o.rateIn;delete o.rateOut;S.workers.set(id,o);putDoc('workers/'+id,o);}}
 function afterData(){
+  schedulePurge();
   if(!(S.loaded.sites&&S.loaded.workers&&S.loaded.weeks))return;
   if(!S.siteId||!S.sites.has(S.siteId)||S.sites.get(S.siteId).archived)S.siteId=activeSites()[0]?.[0]||null;
   if(!dirty.size&&!inflight.size)setStatus('ok');
@@ -1701,7 +1709,7 @@ async function boot(){
     const next=new Map();
     for(const d of s.docs){next.set(d.id,(pdirty.has(d.id)||pinflight.has(d.id))&&S.pay.has(d.id)?S.pay.get(d.id):clone(d.data()));}
     for(const id of [...pdirty,...pinflight])if(!next.has(id)&&S.pay.has(id))next.set(id,S.pay.get(id));
-    S.pay=next;
+    S.pay=next;schedulePurge();
   },subErr);
 }
 render();
