@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 10:25 · 19aafb4c";</script>
+<script>window.PZ_VER="17.10.2026 10:30 · 7da73e65";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -1229,6 +1229,20 @@ document.addEventListener('change',e=>{
       if(ok&&old)FS.del(old).catch(()=>{});renderSheet();toast(_t(ok?'Poza a fost salvată.':'Poza nu s-a putut salva.'));}
     catch(e){toast(_t('Poza nu s-a putut salva.')+(e&&e.code?' ('+e.code+')':''));}})();return;}
   if(t.dataset.lang){LANG=t.dataset.lang==='de'?'de':'ro';store.set('pz.lang',LANG);applyLang();render();toast(_t('Limba a fost schimbată.'));return;}
+  if(t.id==='repSite'){S.repSite=t.value;render();return;}
+  if(t.id==='backupIn'){const f=t.files&&t.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.app!=='pontaj'||!d.weeks||!d.workers||!d.sites)throw 0;
+        S.pendingImport={data:d,date:(d.exportedAt||'').slice(0,10).split('-').reverse().join('.')||_t('fișier'),
+          summary:_t('{s} șantiere, {w} oameni, {k} săptămâni',{s:Object.keys(d.sites).length,w:Object.keys(d.workers).length,k:Object.keys(d.weeks).length})};render();}
+      catch(e){toast(_t('Fișierul nu e un backup de pontaj.'));}};
+    rd.readAsText(f);t.value='';return;}
+  if(t.dataset.exp){if(t.checked)S.expSel.add(t.dataset.exp);else S.expSel.delete(t.dataset.exp);render();return;}
+  if(t.id==='monthSel'){if(t.value){S.month=t.value;render();}return;}
+  if(t.id==='jump'){if(t.value){S.monday=mondayOf(t.value);render();}return;}
+  if(t.dataset.act==='abbr'){const id=t.dataset.id,o=S.sites.get(id);if(!o)return;const v=t.value.trim().toUpperCase().replace(/\s+/g,'').slice(0,4);
+    const n={...o};if(v)n.abbr=v;else delete n.abbr;S.sites.set(id,n);t.value=siteAbbr(id);putDoc('sites/'+id,n);toast(_t('Prescurtare salvată.'));return;}
+  if(t.dataset.act==='rename'){const kind=t.dataset.kind,id=t.dataset.id;const m=kind==='site'?S.sites:S.workers;const n=t.value.trim().replace(/\s+/g,' ');
+    if(!n){t.value=m.get(id).name;return;}if(n===m.get(id).name)return;const o={...m.get(id),name:n};m.set(id,o);putDoc((kind==='site'?'sites/':'workers/')+id,o);toast(_t('Nume actualizat.'));return;}
   if(t.dataset.r!=null&&t.dataset.d!=null){
     const [id,wk]=ensureWeek();const r=wk.rows[+t.dataset.r];if(!r)return;const d=+t.dataset.d;
     const p=parseHours(t.value,S.std[d]);
