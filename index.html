@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 13:20 · 0a2e4a74";</script>
+<script>window.PZ_VER="17.10.2026 13:22 · bdde9baf";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -910,6 +910,10 @@ function endFill(){if(!fill)return;const f=fill,tg=fillTargets();fill=null;docum
   document.querySelectorAll('td.fillsel').forEach(td=>td.classList.remove('fillsel'));if(!tg.length)return;
   const se=(f.srcId&&$(f.srcId))||f.src;const val=(f.kind==='cell'&&se.dataset.h)?se.dataset.h:se.value.trim();if(!val){toast(_t('Căsuța e goală, n-am ce copia.'));return;}
   snap();S.bulk=true;try{for(const i of tg){i.value=val;i.dispatchEvent(new Event('change',{bubbles:true}));}}finally{S.bulk=false;}
+  if(f.kind==='cell'){const [wid,wk]=ensureWeek();const r=wk.rows[+se.dataset.r];   // copiază și șantierul zilei (prescurtarea din colț)
+    if(r){const tag=(r.st&&r.st[+se.dataset.d])||null;r.st=r.st||[null,null,null,null,null,null];
+      for(const i of tg)if(+i.dataset.r===+se.dataset.r)r.st[+i.dataset.d]=absCode(r,+i.dataset.d)?null:tag;
+      if(r.st.every(x=>!x))delete r.st;scheduleSave(wid);}}
   render();const vs=f.kind==='cell'&&se.dataset.h?'✓':val;toast(tg.length===1?_t('{v} copiat într-o căsuță.',{v:vs}):_t('{v} copiat în {n} căsuțe.',{v:vs,n:tg.length}));}
 document.addEventListener('pointerup',endFill);document.addEventListener('pointercancel',endFill);
 let lp=null;
