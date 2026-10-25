@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="17.10.2026 22:10 · e78b75a4";</script>
+<script>window.PZ_VER="25.10.2026 08:42 · c4ef46fe";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -527,6 +527,9 @@ const TAB_ICON=(()=>{const sv=d=>`<svg class="ti" viewBox="0 0 24 24" aria-hidde
     setari:sv('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.6 14.3c2.6-.4 4.6 1.2 5 4.2"/>'),
     config:sv('<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>')};})();
 function render(){
+  // păstrează poziția paginii și a tabelului: altfel, la fiecare reîmprospătare (sincronizare, salvare) ecranul sărea sus/jos/stânga
+  const sx=window.scrollX,sy=window.scrollY,mh=($('main')||{}).offsetHeight||0,hs=[...document.querySelectorAll('#main .sheet')].map(e=>e.scrollLeft);
+  if(mh&&$('main'))$('main').style.minHeight=mh+'px';
   const ae=document.activeElement;const fid=ae&&ae.id;const fval=ae&&ae.tagName==='INPUT'?ae.value:null;
   let sel=null;try{sel=ae&&ae.tagName==='INPUT'?[ae.selectionStart,ae.selectionEnd]:null}catch(e){}
   const NAV={pontaj:'Pontaj',rapoarte:'Rapoarte',imprumut:'Împrumuturi',setari:'Oameni și șantiere',config:'Setări'};
@@ -543,7 +546,9 @@ function render(){
   else m.innerHTML=viewWeek();
   renderSheet();applyLock();applyUndoBtn();
   {const fe=S.fillSrc&&$(S.fillSrc);if(fe&&!S.locked)placeFill(fe);}
-  if(fid){const el=$(fid);if(el){el.focus();if(fval!=null&&el.value!==fval)el.value=fval;if(sel)try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
+  document.querySelectorAll('#main .sheet').forEach((e,i)=>{if(hs[i])e.scrollLeft=hs[i];});
+  if($('main'))$('main').style.minHeight='';if(window.scrollY!==sy||window.scrollX!==sx)window.scrollTo(sx,sy);
+  if(fid){const el=$(fid);if(el){try{el.focus({preventScroll:true});}catch(e){el.focus();}if(fval!=null&&el.value!==fval)el.value=fval;if(sel)try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
 }
 
 function siteSelect(id,val,withAll){
@@ -926,6 +931,7 @@ function viewIn(){const m=$('main');if(!m)return;m.classList.remove('view-in');v
     const fast=dy/(Date.now()-t)>0.6;if(dy>110||(fast&&dy>40)){S.skipClick=true;setTimeout(()=>{S.skipClick=false;},350);S.menu=null;S.photoDel=null;renderSheet();}
     else{box.classList.add('snap');box.style.transform='';setTimeout(()=>box.classList.remove('snap'),320);}};
   document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);})();
+try{history.scrollRestoration='manual';}catch(e){}
 function navPush(){if(!S.local)return;try{history.pushState({pz:1},'');}catch(e){}}
 window.addEventListener('popstate',()=>{if(!S.local)return;
   if(S.menu){S.menu=null;S.photoDel=null;$('sheet').dataset.key='';renderSheet();}
