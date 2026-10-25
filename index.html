@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="25.10.2026 08:42 · c4ef46fe";</script>
+<script>window.PZ_VER="25.10.2026 08:47 · 62658b88";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -87,6 +87,7 @@ td.cell input::placeholder{color:var(--line-strong)}
 td.cell input:focus{background:var(--accent-soft);outline:2px solid var(--focus);outline-offset:-2px}
 td.cell.zero input{color:var(--warn)}
 td.cell.zero{background:var(--warn-soft)}
+@keyframes pzHold{from{box-shadow:inset 0 0 0 0 var(--accent-soft)}to{box-shadow:inset 0 0 0 30px var(--accent-soft)}}td.cell.pressing{animation:pzHold 2s linear forwards}
 td.cell.empty{background:transparent;padding:0;color:inherit;text-align:center}td.cell.empty input{background:var(--empty);border-radius:7px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 8%,transparent)}   /* galbenul doar cât căsuța, nu toată celula */
 thead th.dcol,td.cell{width:3.6em;min-width:3.6em;max-width:3.6em;box-sizing:border-box}@media (max-width:640px){thead th.dcol,td.cell{width:2.8em;min-width:2.8em;max-width:2.8em}}
 thead th .dk{display:block;margin:4px auto 0;width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
@@ -1038,9 +1039,12 @@ document.addEventListener('contextmenu',e=>{const el=e.target.closest('[data-wkd
 document.addEventListener('pointerdown',e=>{const el=e.target.closest('[data-wkdel]');if(!el||e.pointerType==='mouse')return;
   clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{S.skipClick=true;openWeekDel(el.dataset.wkdel);},600)};});
 document.addEventListener('click',e=>{if(S.skipClick){S.skipClick=false;e.preventDefault();e.stopPropagation();}},true);
-document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.cell[data-w]');if(!td)return;if(e.target.closest('[data-fill]')){e.preventDefault();return;}e.preventDefault();openDay(td.dataset.w,+td.dataset.d);});
+// pe telefon fereastra zilei se deschide doar după 2 secunde de ținut apăsat; meniul telefonului (contextmenu) vine prea repede, așa că acolo îl ignor
+let lastPT='mouse';document.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse';},true);
+document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.cell[data-w]');if(!td)return;e.preventDefault();if(e.target.closest('[data-fill]')||lastPT!=='mouse')return;openDay(td.dataset.w,+td.dataset.d);});
 document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.cell[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-fill]'))return;
-  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{const i=td.querySelector('input');if(i)i.blur();openDay(td.dataset.w,+td.dataset.d);},550)};});
+  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{const i=td.querySelector('input');if(i)i.blur();S.skipClick=true;setTimeout(()=>{S.skipClick=false;},600);openDay(td.dataset.w,+td.dataset.d);},2000)};td.classList.add('pressing');});
+['pointerup','pointercancel','pointermove'].forEach(ev=>document.addEventListener(ev,e=>{if(ev==='pointermove'&&lp)return;document.querySelectorAll('td.pressing').forEach(x=>x.classList.remove('pressing'));}));
 document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.name[data-w]');if(!td)return;e.preventDefault();if(drag||e.target.closest('[data-grip]'))return;openMenu(td.dataset.w);});
 document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.name[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-grip]'))return;
   clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>openMenu(td.dataset.w),550)};});
