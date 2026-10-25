@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="25.10.2026 08:51 · 897d351f";</script>
+<script>window.PZ_VER="25.10.2026 08:54 · d9eeb6f0";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -1050,11 +1050,13 @@ document.addEventListener('click',e=>{if(S.skipClick){S.skipClick=false;e.preven
 let lastPT='mouse';document.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse';},true);
 document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.cell[data-w]');if(!td)return;e.preventDefault();if(e.target.closest('[data-fill]')||lastPT!=='mouse')return;openDay(td.dataset.w,+td.dataset.d);});
 document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.cell[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-fill]'))return;
-  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{const i=td.querySelector('input');if(i)i.blur();S.skipClick=true;setTimeout(()=>{S.skipClick=false;},600);openDay(td.dataset.w,+td.dataset.d);},2000)};td.classList.add('pressing');});
+  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{const i=td.querySelector('input');if(i)i.blur();S.lpOpened=true;openDay(td.dataset.w,+td.dataset.d);},2000)};td.classList.add('pressing');});
+// fereastra s-a deschis sub deget: când ridici degetul, clicul care urmează nu trebuie să o închidă (cădea pe fundalul ei)
+['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>{if(S.lpOpened){S.lpOpened=false;S.skipClick=true;setTimeout(()=>{S.skipClick=false;},450);}},true));
 ['pointerup','pointercancel','pointermove'].forEach(ev=>document.addEventListener(ev,e=>{if(ev==='pointermove'&&lp)return;document.querySelectorAll('td.pressing').forEach(x=>x.classList.remove('pressing'));}));
 document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.name[data-w]');if(!td)return;e.preventDefault();if(drag||e.target.closest('[data-grip]'))return;openMenu(td.dataset.w);});
 document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.name[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-grip]'))return;
-  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>openMenu(td.dataset.w),550)};});
+  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{S.lpOpened=true;openMenu(td.dataset.w);},550)};});
 document.addEventListener('pointermove',e=>{if(lp&&Math.hypot(e.clientX-lp.x,e.clientY-lp.y)>10){clearTimeout(lp.t);lp=null;}});
 ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>{if(lp){clearTimeout(lp.t);lp=null;}}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.menu){S.menu=null;renderSheet();}});
