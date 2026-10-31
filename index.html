@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="31.10.2026 12:29 · cca9d119";</script>
+<script>window.PZ_VER="31.10.2026 12:32 · 633a02a4";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -280,6 +280,7 @@ input.field.abbr{width:4.2em;flex:0 0 auto;text-align:center;text-transform:uppe
 .sheetbox>h3{padding-right:46px}
 #main{touch-action:pan-x pan-y}
 .zoomrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zoomrow .btn{min-width:48px;justify-content:center;font-size:20px;font-weight:700}#zoomLbl{min-width:4ch;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+@media (pointer:coarse){td.cell,td.cell input{-webkit-touch-callout:none}td.cell{-webkit-user-select:none;user-select:none}td.cell input[inputmode="none"]{-webkit-user-select:none;user-select:none}}
 .skinpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .skin{display:flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font:inherit;font-weight:600}
 .skin[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
@@ -1072,8 +1073,16 @@ document.addEventListener('click',e=>{if(S.skipClick){S.skipClick=false;e.preven
 // pe telefon fereastra zilei se deschide doar după 2 secunde de ținut apăsat; meniul telefonului (contextmenu) vine prea repede, așa că acolo îl ignor
 let lastPT='mouse';document.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse';},true);
 document.addEventListener('contextmenu',e=>{const td=e.target.closest('td.cell[data-w]');if(!td)return;e.preventDefault();if(e.target.closest('[data-fill]')||lastPT!=='mouse')return;openDay(td.dataset.w,+td.dataset.d);});
-document.addEventListener('pointerdown',e=>{const td=e.target.closest('td.cell[data-w]');if(!td||e.pointerType==='mouse'||e.target.closest('[data-fill]'))return;
-  clearTimeout(lp&&lp.t);lp={x:e.clientX,y:e.clientY,t:setTimeout(()=>{const i=td.querySelector('input');if(i)i.blur();S.lpOpened=true;openDay(td.dataset.w,+td.dataset.d);},2000)};td.classList.add('pressing');});
+// ținut apăsat pe zi (telefon): urmărit cu evenimente touch, care nu se opresc când browserul începe să deruleze
+// (evenimentele pointer se anulau la cea mai mică mișcare și meniul nu mai apărea); toleranță 16 px; 2 secunde
+(()=>{let h=null;const stop=()=>{if(h){clearTimeout(h.t);h.td.classList.remove('pressing');h=null;}};
+  document.addEventListener('touchstart',e=>{stop();if(e.touches.length!==1||S.locked)return;const td=e.target.closest&&e.target.closest('td.cell[data-w]');
+    if(!td||e.target.closest('[data-fill]')||fill)return;const p=e.touches[0];
+    h={td,x:p.clientX,y:p.clientY,t:setTimeout(()=>{const td2=h&&h.td;h=null;if(!td2)return;td2.classList.remove('pressing');const i=td2.querySelector('input');if(i)i.blur();
+      S.lpOpened=true;openDay(td2.dataset.w,+td2.dataset.d);},2000)};td.classList.add('pressing');},{passive:true,capture:true});
+  document.addEventListener('touchmove',e=>{if(!h)return;if(e.touches.length!==1){stop();return;}const p=e.touches[0];if(Math.hypot(p.clientX-h.x,p.clientY-h.y)>16)stop();},{passive:true,capture:true});
+  document.addEventListener('touchend',()=>{stop();if(S.lpOpened){S.lpOpened=false;S.skipClick=true;setTimeout(()=>{S.skipClick=false;},450);}},{passive:true,capture:true});
+  document.addEventListener('touchcancel',stop,{passive:true,capture:true});})();
 // fereastra s-a deschis sub deget: când ridici degetul, clicul care urmează nu trebuie să o închidă (cădea pe fundalul ei)
 ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev,()=>{if(S.lpOpened){S.lpOpened=false;S.skipClick=true;setTimeout(()=>{S.skipClick=false;},450);}},true));
 ['pointerup','pointercancel','pointermove'].forEach(ev=>document.addEventListener(ev,e=>{if(ev==='pointermove'&&lp)return;document.querySelectorAll('td.pressing').forEach(x=>x.classList.remove('pressing'));}));
