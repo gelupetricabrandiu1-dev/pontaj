@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="31.10.2026 12:39 · 368ea044";</script>
+<script>window.PZ_VER="03.11.2026 20:32 · e3e0bf1c";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -280,7 +280,7 @@ input.field.abbr{width:4.2em;flex:0 0 auto;text-align:center;text-transform:uppe
 .sheetbox>h3{padding-right:46px}
 #main{touch-action:pan-x pan-y}
 .zoomrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zoomrow .btn{min-width:48px;justify-content:center;font-size:20px;font-weight:700}#zoomLbl{min-width:4ch;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
-@media (pointer:coarse){td.cell,td.cell input{-webkit-touch-callout:none}td.cell{-webkit-user-select:none;user-select:none}td.cell input[inputmode="none"]{-webkit-user-select:none;user-select:none}}
+@media (pointer:coarse){td.cell input[inputmode="none"]{pointer-events:none}td.cell,td.cell input{-webkit-touch-callout:none}td.cell{-webkit-user-select:none;user-select:none}td.cell input[inputmode="none"]{-webkit-user-select:none;user-select:none}}
 .cprow{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin:2px 0 8px}.cprow .btn{justify-content:center;flex-wrap:wrap;gap:4px;padding:10px 8px;font-size:15px}.cprow small{font-size:12px;color:var(--muted);font-weight:500}
 .skinpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .skin{display:flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px;border:2px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font:inherit;font-weight:600}
@@ -972,11 +972,16 @@ try{history.scrollRestoration='manual';}catch(e){}
 // pe telefon atingerea unei căsuțe doar o selectează (fără tastatură, ca să nu sară ecranul);
 // a doua atingere pe aceeași căsuță deschide tastatura de cifre
 const COARSE=matchMedia('(pointer:coarse)').matches;
-(()=>{let was=null;
-  document.addEventListener('pointerdown',e=>{const i=e.target.closest&&e.target.closest('input[data-r]');was=i&&document.activeElement===i?i:null;
+// Căsuța e „doar selectată” (inputmode none) → input-ul nu primește atingeri (pointer-events:none), le primește celula.
+// Așa telefonul nu mai pornește pe text selecția / meniul lui, care anulau ținutul apăsat de 2 secunde.
+(()=>{let was=null;const cellInp=e=>{const td=e.target&&e.target.closest&&e.target.closest('td.cell[data-w]');return td?td.querySelector('input[data-r]'):null;};
+  document.addEventListener('pointerdown',e=>{const i=cellInp(e);was=i&&document.activeElement===i?i:null;
     if(COARSE)document.querySelectorAll('input[data-r][inputmode="decimal"]').forEach(x=>{if(x!==i)x.inputMode='none';});},true);
-  document.addEventListener('click',e=>{const i=e.target.closest&&e.target.closest('input[data-r]');if(!i||!COARSE||i.readOnly)return;
-    if(was===i&&i.inputMode==='none'){i.inputMode='decimal';i.blur();setTimeout(()=>{i.focus({preventScroll:true});try{i.select();}catch(x){}},30);}});
+  document.addEventListener('click',e=>{if(!COARSE||S.skipClick)return;if(e.target.closest&&e.target.closest('[data-fill]'))return;const i=cellInp(e);if(!i)return;
+    if(i.readOnly){if(S.locked)lockedToast();return;}
+    if(was===i&&i.inputMode==='none'){i.inputMode='decimal';i.blur();setTimeout(()=>{i.focus({preventScroll:true});try{i.select();}catch(x){}},30);}
+    else if(document.activeElement!==i){try{i.focus({preventScroll:true});}catch(x){i.focus();}}
+    if(!i.closest('td').querySelector('.fillh.act'))placeFill(i);});
   document.addEventListener('focusout',e=>{const i=e.target;if(COARSE&&i.matches&&i.matches('input[data-r]'))setTimeout(()=>{if(document.activeElement!==i)i.inputMode='none';},50);});})();
 function navPush(){if(!S.local)return;try{history.pushState({pz:1},'');}catch(e){}}
 window.addEventListener('popstate',()=>{if(!S.local)return;
