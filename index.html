@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="15.11.2026 15:52 · 18e49fc3";</script>
+<script>window.PZ_VER="15.11.2026 15:57 · 30a07bc0";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -111,13 +111,13 @@ td.cell.abs-sw{background:var(--surface)}td.cell.abs-sw input{color:var(--ink,in
 td.cell.abs-l{background:var(--surface)}td.cell.abs-l input{color:var(--ink,inherit);background:linear-gradient(#CE1126,#CE1126) no-repeat;background-size:12px 8px;background-position:calc(50% - 8px) 50%;padding-left:13px;box-sizing:border-box}td.cell.abs-l input:focus{background-color:var(--accent-soft)}td.cell.abs-ro{background:var(--surface)}td.cell.abs-ro input{color:var(--ink,inherit);background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%) no-repeat;background-size:12px 8px;background-position:calc(50% - 11px) 50%;padding-left:15px;box-sizing:border-box}td.cell.abs-ro input:focus{background-color:var(--accent-soft)}
 .dayoptsl{font-size:13px;color:var(--muted);margin:2px 0 6px}
 .dayopts{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin:0 -2px 10px;scrollbar-width:thin}
-.dayopts .btn{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start;padding:10px 14px}
+.dayopts .btn{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start;padding:9px 12px}
 .dayopts .btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .dayopts .btn.site .sab{display:inline-block;min-width:1.6em;padding:1px 5px;margin-right:4px;border-radius:4px;background:var(--accent-soft);color:var(--accent);font-size:12px;text-align:center}
 .dayopts .btn.abs-l b::before{content:'';display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:0;background:#CE1126}
 .dayopts .btn.abs-ro b::before{content:'';display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:0;background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)}
 .sitepick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 10px}.sitepick span{width:100%;font-size:13px;color:var(--muted)}.sitepick .btn{flex:1 1 auto;justify-content:center;font-weight:600}.sitepick .btn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.hourpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px}.hourpick .btn{font-size:17px;font-weight:700;color:var(--accent);padding:10px 4px;justify-content:center}.hourpick .btn sup{font-size:12px;color:var(--ink);margin-left:2px}.hourpick .btn.on{background:var(--accent-soft);border-color:var(--accent)}
+.hourpick{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin:0 -2px 8px;scrollbar-width:thin}.hourpick .btn{flex:0 0 auto;min-width:58px;scroll-snap-align:start}.hourpick .btn{font-size:17px;font-weight:700;color:var(--accent);padding:10px 4px;justify-content:center}.hourpick .btn sup{font-size:12px;color:var(--ink);margin-left:2px}.hourpick .btn.on{background:var(--accent-soft);border-color:var(--accent)}
 .abspick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}.abspick .btn{flex:1 1 auto}
 .abspick .btn.abs-l.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.abspick .btn.abs-l b::before{content:'';display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:0;background:#CE1126}
 .abspick .btn.abs-ro.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.abspick .btn.abs-ro b::before{content:'';display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:0;background:linear-gradient(90deg,#002B7F 0 33.33%,#FCD116 33.33% 66.66%,#CE1126 66.66%)}
@@ -941,7 +941,7 @@ function renderSheet0(){
     el.innerHTML=`<div class="overlay" data-act="menuClose"><div class="sheetbox" data-act="noop" role="dialog" aria-modal="true" aria-label="${esc(wName(m.w))}">
       <h3>${esc(wName(m.w))} · ${DAYS[m.d]} ${dm(day)}</h3>
       <div class="cprow"><button class="btn" data-act="dayCopy">⧉ ${_t('Copiază ziua')}</button><button class="btn${CLIP?'':' ghost'}" data-act="dayPaste"${CLIP?'':' disabled'}>📋 ${_t('Lipește')}${CLIP?` <small>${esc(clipLabel(CLIP))}</small>`:''}</button></div>
-      ${S.std[m.d]!=null?`<div class="hourpick" role="group" aria-label="${_t('Ore')}">${[0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10].map(df=>{const v=r2(S.std[m.d]+df),on=!absCode(r,m.d)&&r.h[m.d]===v;return v>=0?`<button class="btn${on?' on':''}" data-act="dayHours" data-v="${v}" aria-pressed="${on}" title="${fmtH(v)} ${_t('ore')}">${df?'✓<sup>'+df+'</sup>':'✓ '+fmtH(v)}</button>`:'';}).join('')}
+      ${S.std[m.d]!=null?`<div class="dayoptsl">${_t('Ore')} · ${_t('glisează →')}</div><div class="hourpick" role="group" aria-label="${_t('Ore')}">${[0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10].map(df=>{const v=r2(S.std[m.d]+df),on=!absCode(r,m.d)&&r.h[m.d]===v;return v>=0?`<button class="btn${on?' on':''}" data-act="dayHours" data-v="${v}" aria-pressed="${on}" title="${fmtH(v)} ${_t('ore')}">${df?'✓<sup>'+df+'</sup>':'✓ '+fmtH(v)}</button>`:'';}).join('')}
         <button class="btn${r.h[m.d]==null&&!absCode(r,m.d)?' on':''}" data-act="dayHours" data-v="" title="${_t('Golește ziua')}">${_t('gol')}</button></div>`:''}
       ${(()=>{const cd=absCode(r,m.d),aw=r.h[m.d]==null&&!cd?awayAt(getWeek(S.siteId,S.monday),m.w,m.d):[];
         const tg=r.st&&r.st[m.d];
