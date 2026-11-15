@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<script>window.PZ_VER="15.11.2026 15:35 · 50a75d31";</script>
+<script>window.PZ_VER="15.11.2026 15:40 · ca7c8500";</script>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -478,9 +478,9 @@ function copyDay(r,d){CLIP={...dayDetails(r,d),std:S.std[d]};store.set('pz.clip'
   try{navigator.clipboard&&navigator.clipboard.writeText(CLIP.c||(CLIP.h==null?'':fmtH(CLIP.h))).catch(()=>{});}catch(e){}
   toast(_t('Copiat: {x}. Ține apăsat pe altă zi → Lipește (pe PC: Ctrl+V).',{x:clipLabel(CLIP)}));}
 function pasteDay(id,r,d){if(!CLIP)return false;snap();applyDetails(r,d,CLIP);scheduleSave(id);return true;}
-function prevDayDetails(wk,r,d){if(d>0)return dayDetails(r,d-1);
+function prevDayDetails(wk,r,d){if(d>0)return {...dayDetails(r,d-1),sd:d-1};
   const pw=S.weeks.get(weekId(wk.siteId,addDays(wk.monday,-7)));const pr=pw&&pw.rows.find(x=>x.w===r.w);if(!pr)return null;
-  for(let k=4;k>=0;k--){const x=dayDetails(pr,k);if(x.h!=null||x.c)return x;}return null;}
+  for(let k=4;k>=0;k--){const x=dayDetails(pr,k);if(x.h!=null||x.c)return {...x,sd:k};}return null;}
 const isEmpty=(wk,r,d)=>r.h[d]==null&&!absCode(r,d)&&!awayAt(wk,r.w,d).length;
 const dayDone=(wk,d)=>!!wk&&wk.rows.length>0&&wk.rows.every(r=>!isEmpty(wk,r,d));
 function setCode(r,d,code){if(code){r.c=r.c||[null,null,null,null,null,null];r.c[d]=code;r.h[d]=0;}else if(r.c){r.c[d]=null;if(r.c.every(v=>!v))delete r.c;}}
@@ -1344,7 +1344,9 @@ document.addEventListener('click',e=>{
     if(a==='tickStd'){wk.rows.forEach(r=>{if(isEmpty(wk,r,d)){r.h[d]=S.std[d];n++;}});
       toast(_t(n===1?'{z}: un om bifat cu {p} ore.':'{z}: {n} oameni bifați cu {p} ore.',{z:DAYF[d],n,p:fmtH(S.std[d])}));}
     else{wk.rows.forEach(r=>{if(!isEmpty(wk,r,d))return;const x=prevDayDetails(wk,r,d);if(!x||(x.h==null&&!x.c))return;
-        r.h[d]=x.h;setCode(r,d,x.c);if(x.c)r.h[d]=0;setDayArr(r,'st',d,x.c?null:x.st);n++;});
+        // ca la tragere: o zi întreagă dă programul zilei; sâmbăta primește mereu programul ei (5 ore)
+        const h=(!x.c&&x.h>0&&S.std[d]!=null&&(d===5||x.h===S.std[x.sd]))?S.std[d]:x.h;
+        r.h[d]=h;setCode(r,d,x.c);if(x.c)r.h[d]=0;setDayArr(r,'st',d,x.c?null:x.st);n++;});
       toast(n?_t(n===1?'{z}: un om completat ca ziua de dinainte.':'{z}: {n} oameni completați ca ziua de dinainte.',{z:DAYF[d],n}):_t('Nu am găsit zile de dinainte completate pentru oamenii goi.'));}
     S.menu=null;scheduleSave(id);render();}
   else if(a==='loanGo'){if(S.sites.has(t.dataset.site)){S.siteId=t.dataset.site;store.set('pz.site',S.siteId);}S.monday=t.dataset.mon;S.view='pontaj';store.set('pz.view','pontaj');render();window.scrollTo(0,0);}
